@@ -212,7 +212,8 @@ kateXLink.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css'
 
 document.head.appendChild(fontAwesomeLink);
 document.head.appendChild(kateXLink);
-    function createStyles() {
+
+function createStyles() {
   const styleSheet = document.createElement('style');
   const rules = {
     '.modern-menu': {
@@ -368,7 +369,7 @@ function createMenuStructure() {
   const tabsContainer = document.createElement('div');
   tabsContainer.className = 'tabs';
 
-  const tabsData = ['<i class="fa-solid fa-shield-dog"></i> test', '<i class="fa-regular fa-message"></i> response', '<i class="fa-solid fa-brain"></i> AI'];
+  const tabsData = ['<i class="fa-solid fa-shield-dog"></i> cheats', '<i class="fa-regular fa-message"></i> response', '<i class="fa-solid fa-brain"></i> AI'];
   tabsData.forEach((tabName, index) => {
     const tab = document.createElement('button');
     tab.className = `tab${index === 0 ? ' active' : ''}`;
@@ -387,7 +388,16 @@ function createMenuStructure() {
   };
 
   const cheatsContent = createTabContent('<i class="fa-solid fa-shield-dog"></i> cheats', true);
-  const buttons = ['reveal1-answers(ShortCut:-alt+P)', 'reveal2-answers(ShortCut:-alt+T)', 'explanation', 'cheat-sheet', 'possible-responses', 'random-answer', 'copy-text(Right-click)'];
+  const buttons = [
+    'reveal-answer(Alt+P)', 
+    'show-all-answers', 
+    'auto-fill-answer',
+    'explanation', 
+    'question-info',
+    'random-answer', 
+    'copy-text(Right-click)',
+    'skip-to-next'
+  ];
   buttons.forEach(id => {
     const button = document.createElement('button');
     button.className = 'action-button';
@@ -395,7 +405,7 @@ function createMenuStructure() {
     button.id = id;
     button.textContent = id.split('-').map(word =>
       word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
+    ).join(' ').replace(/\(.*?\)/, '').trim() + (id.includes('(') ? ' ' + id.match(/\(.*?\)/)[0] : '');
     cheatsContent.appendChild(button);
   });
 
@@ -484,190 +494,375 @@ elements.tabs.forEach(tab => {
   });
 });
 
-document.getElementById('cheat-sheet').addEventListener('click', () => {
- let answer = Object.values(correctAnswers);
-document.querySelector("#answers-display").innerHTML = answer;
-document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
-});
+// Helper function to check if content has math
+function hasMathContent(text) {
+  if (!text) return false;
+  // Check for MathML
+  if (text.includes('<math') || text.includes('</math>')) return true;
+  // Check for LaTeX delimiters
+  if (text.match(/\\\(|\\\[|\$\$?|\\begin{/)) return true;
+  // Check for common math symbols/commands
+  if (text.match(/\\frac|\\sqrt|\\sum|\\int|\\lim|\\alpha|\\beta|\\gamma/)) return true;
+  return false;
+}
 
-document.getElementById('possible-responses').addEventListener('click', () => {
-     let currentItem = window.LearnosityAssess.getCurrentItem();
-  let answer = currentItem.questions[0].validation.valid_response.value;
-  document.querySelector("#answers-display").innerHTML = answer;
+// Improved answer extraction function
+function getAnswerFromQuestion() {
+  try {
+    const currentItem = window.LearnosityAssess.getCurrentItem();
+    if (!currentItem || !currentItem.questions || !currentItem.questions[0]) {
+      return { success: false, message: "No question found" };
+    }
+
+    const question = currentItem.questions[0];
+    const questionType = question.type;
+    
+    // Handle different question types
+    if (questionType === "mcq" || questionType === "choicematrix") {
+      // Multiple choice
+      const validResponse = question.validation.valid_response.value;
+      let answerText = [];
+      
+      if (Array.isArray(validResponse)) {
+        validResponse.forEach(val => {
+          const option = question.options.find(opt => opt.value === val || opt.value === val.value);
+          if (option) {
+            answerText.push(option.label || option.value);
+          }
+        });
+      } else {
+        const option = question.options.find(opt => opt.value === validResponse);
+        if (option) {
+          answerText.push(option.label || option.value);
+        }
+      }
+      
+      return { 
+        success: true, 
+        answer: answerText.join(", "), 
+        type: questionType,
+        hasFormat: answerText.some(t => hasMathContent(t))
+      };
+    } 
+    else if (questionType === "clozetext" || questionType === "clozedropdown") {
+      // Fill in the blank / dropdown
+      const validResponse = question.validation.valid_response.value;
+      return { 
+        success: true, 
+        answer: Array.isArray(validResponse) ? validResponse.join(", ") : validResponse, 
+        type: questionType,
+        hasFormat: false
+      };
+    }
+    else if (questionType === "association") {
+      // Matching
+      const validResponse = question.validation.valid_response.value;
+      let matches = [];
+      validResponse.forEach(match => {
+        matches.push(`${match[0]} → ${match[1]}`);
+      });
+      return { 
+        success: true, 
+        answer: matches.join("\n"), 
+        type: questionType,
+        hasFormat: false
+      };
+    }
+    else if (questionType === "orderlist") {
+      // Ordering
+      const validResponse = question.validation.valid_response.value;
+      return { 
+        success: true, 
+        answer: validResponse.join(" → "), 
+        type: questionType,
+        hasFormat: false
+      };
+    }
+    else {
+      // Generic fallback
+      const validResponse = question.validation.valid_response.value;
+      return { 
+        success: true, 
+        answer: JSON.stringify(validResponse), 
+        type: questionType,
+        hasFormat: false
+      };
+    }
+  } catch (error) {
+    console.error("Error getting answer:", error);
+    return { success: false, message: error.message };
+  }
+}
+
+// Show all available answers/options
+document.getElementById('show-all-answers').addEventListener('click', () => {
+  try {
+    const currentItem = window.LearnosityAssess.getCurrentItem();
+    const question = currentItem.questions[0];
+    let allOptions = [];
+    
+    if (question.options) {
+      question.options.forEach((opt, idx) => {
+        allOptions.push(`${idx + 1}. ${opt.label || opt.value}`);
+      });
+    }
+    
+    document.querySelector("#answers-display").innerHTML = "All Options:<br><br>" + allOptions.join("<br><br>");
     document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
-});
-    document.getElementById('explanation').addEventListener('click', () => {
-         const currentItem = window.LearnosityAssess.getCurrentItem();
-  const answer = currentItem.questions[0].metadata.le_incorrect_feedbacks;
-  document.querySelector("#answers-display").innerHTML = answer;
-        document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
-    });
-    document.getElementById('random-answer').addEventListener('click', () => {
-  const checkboxes = document.querySelectorAll('input[type="radio"]');
-  if (checkboxes.length > 0) {
-    const randomCheckbox = checkboxes[Math.floor(Math.random() * checkboxes.length)];
-    randomCheckbox.checked = true;
+  } catch (error) {
+    document.querySelector("#answers-display").textContent = "Error: " + error.message;
   }
 });
 
-    document.getElementById('copy-text(Right-click)').addEventListener('click', () => {
-        document.addEventListener('contextmenu', (event) => {
+// Auto-fill the correct answer
+document.getElementById('auto-fill-answer').addEventListener('click', () => {
+  try {
+    const result = getAnswerFromQuestion();
+    if (!result.success) {
+      alert("Could not auto-fill: " + result.message);
+      return;
+    }
+
+    const currentItem = window.LearnosityAssess.getCurrentItem();
+    const question = currentItem.questions[0];
+    const validResponse = question.validation.valid_response.value;
+
+    // Try to select the correct answer based on question type
+    if (question.type === "mcq") {
+      const radios = document.querySelectorAll('input[type="radio"]');
+      const correctValue = Array.isArray(validResponse) ? validResponse[0] : validResponse;
+      radios.forEach(radio => {
+        if (radio.value === correctValue || radio.value === correctValue.value) {
+          radio.click();
+        }
+      });
+    } else if (question.type === "choicematrix") {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      validResponse.forEach(val => {
+        checkboxes.forEach(checkbox => {
+          if (checkbox.value === val || checkbox.value === val.value) {
+            checkbox.click();
+          }
+        });
+      });
+    }
+    
+    alert("Answer auto-filled!");
+  } catch (error) {
+    alert("Error auto-filling: " + error.message);
+  }
+});
+
+// Main reveal answer function
+document.getElementById('reveal-answer(Alt+P)').addEventListener('click', () => {
+  const result = getAnswerFromQuestion();
+  const answerElement = document.querySelector("#answers-display");
+  
+  if (!result.success) {
+    answerElement.textContent = "Error: " + result.message;
+    document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
+    return;
+  }
+
+  // Only apply MathJax if content actually has math
+  if (result.hasFormat) {
+    answerElement.innerHTML = `<strong>Answer (${result.type}):</strong><br><br>${result.answer}`;
+    
+    if (window.MathJax && MathJax.typesetPromise) {
+      MathJax.typesetPromise([answerElement]).catch(err => console.error("MathJax error:", err));
+    }
+  } else {
+    // Plain text, no formatting needed
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = result.answer;
+    answerElement.textContent = `Answer (${result.type}):\n\n${tempDiv.textContent || result.answer}`;
+  }
+  
+  document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
+});
+
+// Question info
+document.getElementById('question-info').addEventListener('click', () => {
+  try {
+    const currentItem = window.LearnosityAssess.getCurrentItem();
+    const question = currentItem.questions[0];
+    const info = `
+Type: ${question.type}
+Points: ${question.metadata?.score_percentage || 'N/A'}
+Difficulty: ${question.metadata?.difficulty || 'N/A'}
+    `.trim();
+    document.querySelector("#answers-display").textContent = info;
+    document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
+  } catch (error) {
+    document.querySelector("#answers-display").textContent = "Error: " + error.message;
+  }
+});
+
+document.getElementById('explanation').addEventListener('click', () => {
+  try {
+    const currentItem = window.LearnosityAssess.getCurrentItem();
+    const explanation = currentItem.questions[0].metadata?.le_incorrect_feedbacks || "No explanation available";
+    document.querySelector("#answers-display").innerHTML = explanation;
+    document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
+  } catch (error) {
+    document.querySelector("#answers-display").textContent = "Error: " + error.message;
+  }
+});
+
+document.getElementById('random-answer').addEventListener('click', () => {
+  const inputs = document.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+  if (inputs.length > 0) {
+    const randomInput = inputs[Math.floor(Math.random() * inputs.length)];
+    randomInput.click();
+  }
+});
+
+document.getElementById('skip-to-next').addEventListener('click', () => {
+  const nextButton = document.querySelector("#nextPage > button");
+  if (nextButton) nextButton.click();
+});
+
+document.getElementById('copy-text(Right-click)').addEventListener('click', () => {
+  document.addEventListener('contextmenu', (event) => {
     event.preventDefault();
     if (event.target.nodeType === Node.ELEMENT_NODE) {
-        const text = event.target.textContent.trim();
-        navigator.clipboard.writeText(text).then(() => {
-            alert(`Copied text: ${text}`);
-        }).catch((error) => {
-            alert(`Failed to copy text: ${error}`);
-        });
+      const text = event.target.textContent.trim();
+      navigator.clipboard.writeText(text).then(() => {
+        alert(`Copied: ${text.substring(0, 50)}...`);
+      }).catch((error) => {
+        alert(`Failed to copy: ${error}`);
+      });
     }
-});
+  });
 });
 
-    document.addEventListener("keydown", function (e) {
+// Keyboard shortcuts
+document.addEventListener("keydown", function (e) {
   if (e.key === "ArrowLeft") {
-document.querySelector("#prevPage > button").click();
+    document.querySelector("#prevPage > button")?.click();
   } else if (e.key === "ArrowRight") {
-document.querySelector("#nextPage > button").click();
+    document.querySelector("#nextPage > button")?.click();
+  } else if (e.key === 'p' && e.altKey) {
+    e.preventDefault();
+    document.getElementById('reveal-answer(Alt+P)').click();
   }
 });
 
-    document.getElementById('reveal1-answers(ShortCut:-alt+P)').addEventListener('click', () => {
-  checkAnswers('practiveAns');
-});
+// AI functionality
+document.getElementById('botAnswer').addEventListener('click', async () => {
+  const log = document.querySelector("#answers-display");
+  try {
+    const elements = document.querySelectorAll(".row");
+    let questions_and_options = "";
+    elements.forEach(element => {
+      const textContent = element.textContent.trim();
+      if (textContent) {
+        questions_and_options += textContent + "\n";
+      }
+    });
 
-document.getElementById('reveal2-answers(ShortCut:-alt+T)').addEventListener('click', () => {
-  checkAnswers('testAns');
-});
-
-    document.getElementById('botAnswer').addEventListener('click', () => {
-        const log = document.querySelector("#answers-display");
-        async function processAndSendData() {
-            const elements = document.querySelectorAll(".row");
-            let questions_and_options = "";
-            elements.forEach(element => {
-                const textContent = element.textContent.trim();
-                if (textContent) {
-                    questions_and_options += textContent + "\\n";
-                }
-            });
-            if (questions_and_options.trim() === "") {
-                console.log("Text was empty try again...");
-                document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
-                log.textContent = "Text was empty try again...";
-                return;
-            }
-            console.log(questions_and_options);
-            try {
-                const response = await fetch("https://api.ai21.com/studio/v1/chat/completions", {
-                    headers: {
-                        "Authorization": "Bearer vKUeSkCw6NILYXg7GZ4ls7iNmiJCqBpG",
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        "model": "jamba-instruct-preview",
-                        "messages": [
-                            {
-                                "content": "Answer these questions:\\n"+questions_and_options+"\\n answer every question\\n",
-                                "role": "user"
-                            }
-                        ],
-                        "n": 1,
-                        "max_tokens": 4000,
-                        "temperature": 1,
-                        "top_p": 1,
-                        "stop": []
-                    }),
-                    method: "POST"
-                });
-                const data = await response.json();
-                const fetchedText = data.choices[0].message.content;
-                console.log(fetchedText);
-
-                function renderKaTeX(text, container) {
-           function escapeHTML(unsafe) {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+    if (!questions_and_options.trim()) {
+      log.textContent = "No question text found";
+      document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
+      return;
     }
 
-    let codeBlocks = [];
-    text = text.replace(/```(\w*)\n([\s\S]+?)```/g, (match, lang, content) => {
+    log.textContent = "AI is thinking...";
+    document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
+
+    const response = await fetch("https://api.ai21.com/studio/v1/chat/completions", {
+      headers: {
+        "Authorization": "Bearer d098d436-b358-4039-b135-1324a4937d5b",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        "model": "jamba-large-1.7",
+        "messages": [{
+          "content": "Answer these questions:\n" + questions_and_options + "\n answer every question\n",
+          "role": "user"
+        }],
+        "n": 1,
+        "max_tokens": 4000,
+        "temperature": 1,
+        "top_p": 1,
+        "stop": []
+      }),
+      method: "POST"
+    });
+
+    const data = await response.json();
+    const fetchedText = data.choices[0].message.content;
+
+    function renderKaTeX(text, container) {
+      function escapeHTML(unsafe) {
+        return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      let codeBlocks = [];
+      text = text.replace(/```(\w*)\n([\s\S]+?)```/g, (match, lang, content) => {
         const escapedContent = escapeHTML(content.trim());
         const blockId = `__CODE_BLOCK_${codeBlocks.length}__`;
         codeBlocks.push({
-            lang: lang || 'plain',
-            content: escapedContent
+          lang: lang || 'plain',
+          content: escapedContent
         });
         return blockId;
-    });
+      });
 
-    text = text.replace(/\$\$([\s\S]+?)\$\$/g, (match, group) =>
+      text = text.replace(/\$\$([\s\S]+?)\$\$/g, (match, group) =>
         `<div style="text-align:center;">${katex.renderToString(group, { displayMode: true, throwOnError: false })}</div>`
-    );
+      );
 
-    text = text.replace(/\$([^\$]+?)\$/g, (match, group) =>
+      text = text.replace(/\$([^\$]+?)\$/g, (match, group) =>
         katex.renderToString(group, { throwOnError: false })
-    );
+      );
 
-    text = text
+      text = text
         .replace(/^(#{1,6})\s*(.+)$/gm, (match, hashes, content) => {
-            const level = hashes.length;
-            return `<h${level}>${escapeHTML(content.trim())}</h${level}>`;
+          const level = hashes.length;
+          return `<h${level}>${escapeHTML(content.trim())}</h${level}>`;
         })
-
         .replace(/^>\s*(.+)$/gm, '<blockquote>$1</blockquote>')
-
         .replace(/^(---|\*\*\*|___)$/gm, '<hr>')
-
         .replace(/(\*\*|__)(.*?)\1/g, '<strong>$2</strong>')
-
         .replace(/(\*|_)(.*?)\1/g, '<em>$2</em>')
-
         .replace(/(\*\*\*|___)(.*?)\1/g, '<strong><em>$2</em></strong>')
-
         .replace(/~~(.*?)~~/g, '<del>$1</del>')
-
         .replace(/`(.*?)`/g, '<code>$1</code>')
-
         .replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2">$1</a>')
-
         .replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '<img src="$2" alt="$1">')
-
         .replace(/^(\*|\+|-)\s+(.+)$/gm, '<ul><li>$2</li></ul>')
-
         .replace(/^(\d+)\.\s+(.+)$/gm, '<ol><li>$2</li></ol>')
-
         .replace(/(\w+)~(\w+)~/g, '$1<sub>$2</sub>')
-
         .replace(/(\w+)\^(\w+)\^/g, '$1<sup>$2</sup>');
 
-    codeBlocks.forEach((block, index) => {
+      codeBlocks.forEach((block, index) => {
         const blockId = `__CODE_BLOCK_${index}__`;
         const codeClass = block.lang ? `language-${block.lang}` : '';
         text = text.replace(blockId,
-            `<pre><code class="${codeClass}">${block.content}</code></pre>`
+          `<pre><code class="${codeClass}">${block.content}</code></pre>`
         );
-    });
+      });
 
-            container.innerHTML = text;
-        }
+      container.innerHTML = text;
+    }
 
-        const outputContainer = document.getElementById('answers-display');
-        renderKaTeX(fetchedText, outputContainer);
-        document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
-            } catch (error) {
-                document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
-                console.error("Error fetching data:", error);
-                log.textContent = "Error fetching data: " + error.message;
-            }
-        }
-processAndSendData()
-    });
+    const outputContainer = document.getElementById('answers-display');
+    renderKaTeX(fetchedText, outputContainer);
+    document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
+  } catch (error) {
+    console.error("AI Error:", error);
+    log.textContent = "Error: " + error.message;
+    document.querySelector("body > div.modern-menu > div > div.tabs > button:nth-child(2)").click();
+  }
+});
 
+// Chat functionality
 async function sendMessage() {
   const message = elements.chatInput.value.trim();
   if (!message) return;
@@ -682,11 +877,11 @@ async function sendMessage() {
 
     const response = await fetch("https://api.ai21.com/studio/v1/chat/completions", {
       headers: {
-        "Authorization": "Bearer vKUeSkCw6NILYXg7GZ4ls7iNmiJCqBpG",
+        "Authorization": "Bearer d098d436-b358-4039-b135-1324a4937d5b",
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        "model": "jamba-instruct-preview",
+        "model": "jamba-large-1.7",
         "messages": chatHistory,
         "n": 1,
         "max_tokens": 4096,
@@ -726,38 +921,7 @@ elements.chatInput.addEventListener('keypress', (e) => {
   }
 });
 
-let answerElement = document.querySelector("#answers-display");
-
-setInterval(()=>{
-    if(document.querySelectorAll("iframe")?.[1]?.contentDocument?.querySelectorAll("iframe")?.[0]?.contentDocument?.getElementById("checkAnswer")){
-        var answer = Object.values(document.querySelectorAll("iframe")[1].contentDocument.querySelectorAll("iframe")[0].contentDocument.getElementById("checkAnswer"))[0].$scope
-        var ansID;
-        for (let index = 0; index < answer.questionLoad.options.length; index++) {
-            let ques = answer.questionLoad.options[index];
-            if(ques.optionAns === answer.ans){
-                ansID = ques.id
-            }
-        }
-        answer.Checkans(answer.ans, ansID, answer.ans);
-    }
-}, 10)
-let currentId;
-
-function checkAnswers(id) {
-  if (id === "practiveAns") {
-    practiceAns();
-  } else if (id === "testAns") {
-    testAns();
-  }
-}
-
-function practiceAns() {
-let currentItem = window.LearnosityAssess.getCurrentItem();
-  let answer = currentItem.questions[0].validation.valid_response.value[0].value;
-  answerElement.textContent = `The Answer Is ${answer}`;
-}
-
-    // First add MathJax to the page with proper configuration
+// Load MathJax if needed
 let mathJaxConfig = document.createElement('script');
 mathJaxConfig.type = 'text/javascript';
 mathJaxConfig.text = `
@@ -784,98 +948,36 @@ mathJaxScript.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 mathJaxScript.async = true;
 document.head.appendChild(mathJaxScript);
 
-function testAns() {
-function inspectAndRenderAnswer() {
-  try {
-    const currentItem = window.LearnosityAssess.getCurrentItem();
-    const answer = currentItem.questions[0];
-    const answerElement = document.querySelector("#answers-display");
-
-    const validOptionValue = answer.validation.valid_response.value[0];
-    const validOption = answer.options.find(option => option.value === validOptionValue);
-
-    console.log("Valid option:", validOption);
-    console.log("Label:", validOption.label);
-
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = validOption.label;
-
-    let mathContent = '';
-
-    const mathmlElement = tempDiv.querySelector('math');
-    if (mathmlElement) {
-      mathContent = mathmlElement.outerHTML;
-      answerElement.innerHTML = `The Answer Is: ${mathContent}`;
-    }
-    else if (validOption.label.includes('\\(') || validOption.label.includes('\\[') ||
-             validOption.label.includes('$')) {
-      mathContent = validOption.label
-        .replace(/&nbsp;/g, ' ')
-        .replace(/<[^>]*>/g, '');
-
-      if (!mathContent.includes('$') && !mathContent.includes('\\(')) {
-        mathContent = `$$${mathContent}$$`;
-      }
-
-      answerElement.innerHTML = `The Answer Is: ${mathContent}`;
-    }
-    else {
-      mathContent = tempDiv.textContent.trim();
-      answerElement.innerHTML = `The Answer Is: $$${mathContent}$$`;
-    }
-
-    if (!window.MathJax) {
-      window.MathJax = {
-        tex: {
-          inlineMath: [['$', '$'], ['\\(', '\\)']],
-          displayMath: [['$$', '$$'], ['\\[', '\\]']],
-          processEscapes: true
-        },
-        options: {
-          enableMenu: false,
-          renderActions: {
-            addMenu: [],
-            checkLoading: []
-          }
-        },
-        startup: {
-          ready() {
-            MathJax.startup.defaultReady();
-            console.log("MathJax is ready!");
-            MathJax.typeset([answerElement]);
-          }
-        }
-      };
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
-      script.async = true;
-      document.head.appendChild(script);
-    } else if (MathJax.typesetPromise) {
-      MathJax.typesetPromise([answerElement])
-        .then(() => console.log("Math rendered successfully"))
-        .catch(err => console.error("MathJax error:", err));
-    }
-  } catch (e) {
-    console.error("Error rendering answer:", e);
-  }
 }
 
-inspectAndRenderAnswer();
-}
+// Connexus iframe button
+if (window.location.href.includes('www.connexus.com')) {
+  setInterval(() => {
+    const iframe = document.getElementById("lessonContentIFrame");
+    if (iframe && !iframe.dataset.buttonAdded) {
+      let btn = document.createElement("button");
+      btn.textContent = "🤫";
+      btn.style.position = "absolute";
+      btn.style.top = (iframe.getBoundingClientRect().top + 10) + "px";
+      btn.style.right = (iframe.getBoundingClientRect().left - 97) + "px";
+      btn.style.zIndex = "9999";
+      btn.style.background = "#722362";
+      btn.style.borderLeft = "2px solid #D2DB0E";
+      btn.style.borderRight = "none";
+      btn.style.borderTop = "2px solid #D2DB0E";
+      btn.style.borderBottom = "2px solid #D2DB0E";
+      btn.style.borderRadius = "20px 0 0 20px";
+      btn.style.padding = "10px";
+      btn.style.fontWeight = "bold";
+      btn.style.color = "white";
+      btn.style.cursor = "pointer";
+      btn.onclick = () => window.open(iframe.src, "_blank");
+document.body.appendChild(btn);
 
-document.addEventListener('click', (event) => {
-  if (event.target.id === 'practiveAns' || event.target.id === 'testAns') {
-    checkAnswers(event.target.id);
-  }
-});
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'p' && event.altKey) {
-    checkAnswers("practiveAns");
-  } else if (event.key === 't' && event.altKey) {
-    checkAnswers("testAns");
-  }
-});
-}
+      iframe.dataset.buttonAdded = "true";
+    }
+  }, 0);
+}		
 if (window.location.href.startsWith('https://www.connexus.com/errors/404.aspx?aspxerrorpath=/planner/extraLessons.aspx')) {
     document.querySelector("body").innerHTML = `
 <!DOCTYPE html><html lang="en">
