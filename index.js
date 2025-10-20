@@ -217,7 +217,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         tabsContainer.className = 'tabs';
 
         const tabsData = [
-            '<i class="fa-solid fa-shield-dog"></i> cheats',
+            '<i class="fa-solid fa-shield-dog"></i> testd',
             '<i class="fa-regular fa-message"></i> response',
             '<i class="fa-solid fa-brain"></i> AI',
             '<i class="fa-solid fa-bug"></i> debug'
