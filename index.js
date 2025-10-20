@@ -399,19 +399,20 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             }
             
             // Association (Matching)
-            else if (questionType === "association") {
-                const validResponse = question.validation.valid_response.value;
-                let matches = [];
-                
-                validResponse.forEach(match => {
-                    const leftItem = question.stimulus_list.find(item => item.value === match[0]);
-                    const rightItem = match[1];
-                    
-                    const leftText = leftItem ? stripHTML(leftItem.label) : match[0];
-                    const rightText = stripHTML(rightItem);
-                    
-                    matches.push(`"${leftText}" → "${rightText}"`);
-                });
+else if (questionType === "association") {
+    const validResponse = question.validation.valid_response.value;
+    let matches = [];
+    
+    validResponse.forEach(match => {
+        // match[0] is the left item value, match[1] is the right item value
+        const leftItem = question.stimulus_list.find(item => item.value === match[0]);
+        const rightItem = question.possible_responses.find(item => item === match[1]);
+        
+        const leftText = leftItem ? stripHTML(leftItem.label) : match[0];
+        const rightText = rightItem ? stripHTML(rightItem) : match[1];
+        
+        matches.push(`"${leftText}" → "${rightText}"`);
+    });
                 
                 addDebugLog('success', 'Matching answer extracted', matches);
                 return { 
