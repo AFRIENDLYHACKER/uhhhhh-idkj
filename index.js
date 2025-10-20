@@ -217,24 +217,24 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         tabsContainer.className = 'tabs';
 
         const tabsData = [
-    { id: 'cheats', label: '<i class="fa-solid fa-shield-dog"></i> Cheats' },
-    { id: 'response', label: '<i class="fa-regular fa-message"></i> Response' },
-    { id: 'AI', label: '<i class="fa-solid fa-brain"></i> AI' },
-    { id: 'debug', label: '<i class="fa-solid fa-bug"></i> Debug' }
-];
-
-tabsData.forEach((tabData, index) => {
-    const tab = document.createElement('button');
-    tab.className = `tab${index === 0 ? ' active' : ''}`;
-    tab.setAttribute('data-tab', tabData.id);  // ✅ Use simple ID
-    tab.innerHTML = tabData.label;
-    tabsContainer.appendChild(tab);
-});
+            '<i class="fa-solid fa-shield-dog"></i> cheats',
+            '<i class="fa-regular fa-message"></i> response',
+            '<i class="fa-solid fa-brain"></i> AI',
+            '<i class="fa-solid fa-bug"></i> debug'
+        ];
+        
+        tabsData.forEach((tabName, index) => {
+            const tab = document.createElement('button');
+            tab.className = `tab${index === 0 ? ' active' : ''}`;
+            tab.setAttribute('data-tab', tabName);
+            tab.innerHTML = tabName.charAt(0).toUpperCase() + tabName.slice(1);
+            tabsContainer.appendChild(tab);
+        });
 
         menuContainer.appendChild(tabsContainer);
 
         // Cheats tab
-        const cheatsContent = createTabContent('cheats', true);
+        const cheatsContent = createTabContent('<i class="fa-solid fa-shield-dog"></i> cheats', true);
         const buttons = [
             'reveal-answer',
             'show-all-answers',
@@ -258,7 +258,7 @@ tabsData.forEach((tabData, index) => {
         });
 
         // Response tab
-const responseContent = createTabContent('response');
+        const responseContent = createTabContent('<i class="fa-regular fa-message"></i> response');
         const answersDisplay = document.createElement('div');
         answersDisplay.id = 'answers-display';
         answersDisplay.style.fontWeight = 'bold';
@@ -267,7 +267,7 @@ const responseContent = createTabContent('response');
         responseContent.appendChild(answersDisplay);
 
         // AI tab
-const aiContent = createTabContent('AI');
+        const aiContent = createTabContent('<i class="fa-solid fa-brain"></i> AI');
         const chatContainer = document.createElement('div');
         chatContainer.className = 'chat-container';
 
@@ -300,7 +300,7 @@ const aiContent = createTabContent('AI');
         aiContent.appendChild(botAnswer);
 
         // Debug tab
-const debugContent = createTabContent('debug');
+        const debugContent = createTabContent('<i class="fa-solid fa-bug"></i> debug');
         debugContent.setAttribute('data-content', 'debug');
         
         const clearLogsButton = document.createElement('button');
@@ -398,38 +398,20 @@ const debugContent = createTabContent('debug');
                 };
             }
             
-// Association (Matching)
-else if (questionType === "association") {
-    const validResponse = question.validation.valid_response.value;
-    
-    // 🔍 DEBUG - Log the actual structure
-    console.log("=== MATCHING QUESTION DEBUG ===");
-    console.log("validResponse:", validResponse);
-    console.log("stimulus_list:", question.stimulus_list);
-    console.log("possible_responses:", question.possible_responses);
-    
-    let matches = [];
-    
-    validResponse.forEach(match => {
-        console.log("Processing match:", match);
-        console.log("match[0]:", match[0], "match[1]:", match[1]);
-        
-        const leftItem = question.stimulus_list.find(item => item.value === match[0]);
-        console.log("Found leftItem:", leftItem);
-        
-        const rightItem = question.possible_responses.find(item => item === match[1]);
-        console.log("Found rightItem:", rightItem);    const validResponse = question.validation.valid_response.value;
-    
-    validResponse.forEach(match => {
-        // match[0] is the left item value, match[1] is the right item value
-        const leftItem = question.stimulus_list.find(item => item.value === match[0]);
-        const rightItem = question.possible_responses.find(item => item === match[1]);
-        
-        const leftText = leftItem ? stripHTML(leftItem.label) : match[0];
-        const rightText = rightItem ? stripHTML(rightItem) : match[1];
-        
-        matches.push(`"${leftText}" → "${rightText}"`);
-    });
+            // Association (Matching)
+            else if (questionType === "association") {
+                const validResponse = question.validation.valid_response.value;
+                let matches = [];
+                
+                validResponse.forEach(match => {
+                    const leftItem = question.stimulus_list.find(item => item.value === match[0]);
+                    const rightItem = match[1];
+                    
+                    const leftText = leftItem ? stripHTML(leftItem.label) : match[0];
+                    const rightText = stripHTML(rightItem);
+                    
+                    matches.push(`"${leftText}" → "${rightText}"`);
+                });
                 
                 addDebugLog('success', 'Matching answer extracted', matches);
                 return { 
