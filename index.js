@@ -657,45 +657,49 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
 
     // ==================== AI FUNCTIONALITY ====================
     
-    function extractQuestionForAI() {
-        addDebugLog('info', 'Extracting question for AI...');
+  function extractQuestionForAI() {
+    addDebugLog('info', 'Extracting question for AI...');
+    
+    try {
+        const currentItem = window.LearnosityAssess.getCurrentItem();
+        const question = currentItem.questions[0];
         
-        try {
-            const currentItem = window.LearnosityAssess.getCurrentItem();
-            const question = currentItem.questions[0];
-            
-            let aiPrompt = "Question: " + stripHTML(question.stimulus) + "\n\n";
+        let aiPrompt = "Question: " + stripHTML(question.stimulus) + "\n\n";
 
-            if (question.type === "mcq" || question.type === "choicematrix") {
-                aiPrompt += "Options:\n";
-                question.options.forEach((opt, idx) => {
-                    aiPrompt += `${idx + 1}. ${stripHTML(opt.label)}\n`;
-                });
-            } else if (question.type === "association") {
-                aiPrompt += "Match these items:\n\nLeft column:\n";
-                question.stimulus_list.forEach((item, idx) => {
-                    aiPrompt += `${idx + 1}. ${stripHTML(item.label)}\n`;
-                });
-                aiPrompt += "\nRight column:\n";
-                question.possible_responses.forEach((item, idx) => {
-                    const label = typeof item === 'object' ? item.label : item;
-                    aiPrompt += `${idx + 1}. ${stripHTML(label)}\n`;
-                });
-            } else if (question.type === "clozedropdown") {
-                aiPrompt += stripHTML(question.template);
-                aiPrompt += "\n\nDropdown options:\n";
-                question.possible_responses.forEach((options, idx) => {
-                    aiPrompt += `Blank ${idx + 1}: ${options.join(", ")}\n`;
-                });
-            }
-
-            addDebugLog('success', 'Question extracted for AI', { prompt: aiPrompt.substring(0, 200) + '...' });
-            return aiPrompt;
-        } catch (error) {
-            addDebugLog('error', 'Error extracting question for AI: ' + error.message, error);
-            return null;
+        if (question.type === "mcq" || question.type === "choicematrix") {
+            aiPrompt += "Options:\n";
+            question.options.forEach((opt, idx) => {
+                aiPrompt += `${idx + 1}. ${stripHTML(opt.label)}\n`;
+            });
+        } else if (question.type === "association") {
+            aiPrompt += "Match these items:\n\nLeft column:\n";
+            question.stimulus_list.forEach((item, idx) => {
+                const text = stripHTML(item.label || item.value);
+                aiPrompt += `${idx + 1}. ${text}\n`;
+            });
+            aiPrompt += "\nRight column:\n";
+            question.possible_responses.forEach((item, idx) => {
+                const label = typeof item === 'object' ? (item.label || item.value) : item;
+                const text = stripHTML(label);
+                aiPrompt += `${idx + 1}. ${text}\n`;
+            });
+        } else if (question.type === "clozedropdown") {
+            // Enhanced: Get the full text with blanks
+            const template = stripHTML(question.template);
+            aiPrompt += template + "\n\n";
+            aiPrompt += "Dropdown options:\n";
+            question.possible_responses.forEach((options, idx) => {
+                aiPrompt += `Blank ${idx + 1}: ${options.join(", ")}\n`;
+            });
         }
+
+        addDebugLog('success', 'Question extracted for AI', { prompt: aiPrompt.substring(0, 200) + '...' });
+        return aiPrompt;
+    } catch (error) {
+        addDebugLog('error', 'Error extracting question for AI: ' + error.message, error);
+        return null;
     }
+}
 
     async function solveWithAI() {
         const log = document.querySelector("#answers-display");
@@ -743,22 +747,45 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
     }
 
     function renderFormattedText(text, container) {
-        text = text
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.+?)\*/g, '<em>$1</em>')
-            .replace(/^- (.+)$/gm, '<li>$1</li>')
-            .replace(/\n\n/g, '<br><br>');
-        
-        container.innerHTML = text;
-        
-        if (window.katex) {
-            container.querySelectorAll('code').forEach(code => {
-                try {
-                    katex.render(code.textContent, code, { throwOnError: false });
-                } catch (e) {}
-            });
-        }
+    // Enhanced markdown rendering with proper formatting
+    
+    // Convert markdown to HTML
+    text = text
+        // Bold
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        // Italic
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // Headers
+        .replace(/^### (.+)$/gm, '<h3 style="font-size: 1.1rem; font-weight: bold; margin: 1rem 0 0.5rem 0;">$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2 style="font-size: 1.2rem; font-weight: bold; margin: 1rem 0 0.5rem 0;">$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1 style="font-size: 1.3rem; font-weight: bold; margin: 1rem 0 0.5rem 0;">$1</h1>')
+        // Lists
+        .replace(/^- (.+)$/gm, '<li style="margin-left: 1.5rem;">$1</li>')
+        .replace(/^\d+\. (.+)$/gm, '<li style="margin-left: 1.5rem; list-style-type: decimal;">$1</li>')
+        // Line breaks
+        .replace(/\n\n/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+    
+    // Wrap lists in ul/ol tags
+    text = text.replace(/(<li style="margin-left: 1\.5rem;">.*?<\/li>(?:<br>)?)+/g, (match) => {
+        return '<ul style="margin: 0.5rem 0;">' + match.replace(/<br>/g, '') + '</ul>';
+    });
+    
+    text = text.replace(/(<li style="margin-left: 1\.5rem; list-style-type: decimal;">.*?<\/li>(?:<br>)?)+/g, (match) => {
+        return '<ol style="margin: 0.5rem 0; list-style-position: inside;">' + match.replace(/<br>/g, '') + '</ol>';
+    });
+    
+    container.innerHTML = text;
+    
+    // Render KaTeX if available
+    if (window.katex) {
+        container.querySelectorAll('code').forEach(code => {
+            try {
+                katex.render(code.textContent, code, { throwOnError: false });
+            } catch (e) {}
+        });
     }
+}
 
     // ==================== UI HELPERS ====================
     
@@ -1330,13 +1357,42 @@ Average Score: ${metadata.average_score || 'N/A'}`;
         }
     }
 
-    function addMessageToChat(message, role) {
-        const messageElement = document.createElement('div');
-        messageElement.className = `chat-message ${role}-message`;
+   function addMessageToChat(message, role) {
+    const messageElement = document.createElement('div');
+    messageElement.className = `chat-message ${role}-message`;
+    
+    if (role === 'assistant') {
+        // Format assistant messages with markdown support
+        let formattedMessage = message
+            // Bold
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            // Italic
+            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            // Lists
+            .replace(/^- (.+)$/gm, '<li>$1</li>')
+            .replace(/^\d+\. (.+)$/gm, '<li style="list-style-type: decimal;">$1</li>')
+            // Line breaks
+            .replace(/\n\n/g, '<br><br>')
+            .replace(/\n/g, '<br>');
+        
+        // Wrap lists
+        formattedMessage = formattedMessage.replace(/(<li>.*?<\/li>(?:<br>)?)+/g, (match) => {
+            return '<ul style="margin: 0.5rem 0; padding-left: 1.5rem;">' + match.replace(/<br>/g, '') + '</ul>';
+        });
+        
+        formattedMessage = formattedMessage.replace(/(<li style="list-style-type: decimal;">.*?<\/li>(?:<br>)?)+/g, (match) => {
+            return '<ol style="margin: 0.5rem 0; padding-left: 1.5rem;">' + match.replace(/<br>/g, '') + '</ol>';
+        });
+        
+        messageElement.innerHTML = formattedMessage;
+    } else {
+        // User messages stay as plain text
         messageElement.textContent = message;
-        elements.chatContainer.appendChild(messageElement);
-        elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
     }
+    
+    elements.chatContainer.appendChild(messageElement);
+    elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+}
 
     elements.sendButton.addEventListener('click', sendMessage);
     elements.chatInput.addEventListener('keypress', (e) => {
