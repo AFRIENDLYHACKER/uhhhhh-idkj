@@ -281,6 +281,8 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         const buttons = [
             { id: 'reveal-answer', text: '🎯 Reveal Answer', color: '#059669' },
             { id: 'auto-fill-answer', text: '⚡ Auto Fill Answer', color: '#dc2626' },
+            { id: 'auto-complete', text: '🚀 Auto Complete Assignment', color: '#7c3aed' }
+            { id: 'auto-complete-realistic', text: '🎭 Auto Complete (Realistic)', color: '#ec4899' },
             { id: 'highlight-correct', text: '✨ Highlight Correct', color: '#f59e0b' },
             { id: 'show-all-answers', text: '📋 Show All Options', color: '#3b82f6' },
             { id: 'copy-question', text: '📄 Copy Question Text', color: '#6366f1' },
@@ -405,6 +407,170 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                text.match(/\\frac|\\sqrt|\\sum|\\int|\\lim/);
     }
 
+    // ==================== HUMAN BEHAVIOR SIMULATION ====================
+
+function calculateReadingTime(text) {
+    // Average reading speed: 200-250 words per minute
+    // We'll use 225 WPM average, but add variance
+    const words = text.split(/\s+/).length;
+    const baseTimeMs = (words / 225) * 60 * 1000; // Convert to milliseconds
+    
+    // Add 2-5 seconds minimum for very short text
+    const minTime = 2000;
+    const readingTime = Math.max(minTime, baseTimeMs);
+    
+    // Add random variance (±30%)
+    const variance = readingTime * 0.3;
+    const randomVariance = (Math.random() * variance * 2) - variance;
+    
+    return Math.floor(readingTime + randomVariance);
+}
+
+function simulateMouseMovement() {
+    // Create random mouse movements over the question area
+    return new Promise(resolve => {
+        const questionArea = document.querySelector('.lrn-assess-item, .lrn_widget, [data-lrn-component]') || document.body;
+        const rect = questionArea.getBoundingClientRect();
+        
+        const movements = 3 + Math.floor(Math.random() * 4); // 3-6 movements
+        let completed = 0;
+        
+        for (let i = 0; i < movements; i++) {
+            setTimeout(() => {
+                const x = rect.left + Math.random() * rect.width;
+                const y = rect.top + Math.random() * rect.height;
+                
+                const moveEvent = new MouseEvent('mousemove', {
+                    clientX: x,
+                    clientY: y,
+                    bubbles: true
+                });
+                document.dispatchEvent(moveEvent);
+                
+                completed++;
+                if (completed === movements) resolve();
+            }, i * (200 + Math.random() * 300)); // 200-500ms between movements
+        }
+    });
+}
+
+// ==================== PROGRESS PERSISTENCE ====================
+
+const PROGRESS_KEY = 'learnosity_auto_complete_progress';
+
+function saveProgress(data) {
+    try {
+        localStorage.setItem(PROGRESS_KEY, JSON.stringify({
+            ...data,
+            timestamp: Date.now(),
+            url: window.location.href
+        }));
+        addDebugLog('info', 'Progress saved', data);
+    } catch (e) {
+        addDebugLog('error', 'Failed to save progress', e);
+    }
+}
+
+function loadProgress() {
+    try {
+        const saved = localStorage.getItem(PROGRESS_KEY);
+        if (!saved) return null;
+        
+        const data = JSON.parse(saved);
+        
+        // Check if progress is for current URL and less than 24 hours old
+        if (data.url === window.location.href && 
+            (Date.now() - data.timestamp) < 24 * 60 * 60 * 1000) {
+            addDebugLog('success', 'Progress loaded', data);
+            return data;
+        }
+        
+        return null;
+    } catch (e) {
+        addDebugLog('error', 'Failed to load progress', e);
+        return null;
+    }
+}
+
+function clearProgress() {
+    localStorage.removeItem(PROGRESS_KEY);
+    addDebugLog('info', 'Progress cleared');
+}
+
+// ==================== API INTERCEPTOR ====================
+
+function setupAPIInterceptor() {
+    // Intercept fetch requests
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+        const [url, options] = args;
+        
+        // Log all Learnosity API calls
+        if (url && (url.includes('learnosity') || url.includes('assess'))) {
+            addDebugLog('info', 'API Request intercepted', { url, method: options?.method });
+        }
+        
+        try {
+            const response = await originalFetch.apply(this, args);
+            
+            // Clone response to read it
+            const clonedResponse = response.clone();
+            
+            // Try to parse JSON response
+            try {
+                const data = await clonedResponse.json();
+                if (url && (url.includes('learnosity') || url.includes('assess'))) {
+                    addDebugLog('success', 'API Response intercepted', { 
+                        url: url.substring(0, 100),
+                        dataPreview: JSON.stringify(data).substring(0, 200) 
+                    });
+                }
+            } catch (e) {
+                // Not JSON, ignore
+            }
+            
+            return response;
+        } catch (error) {
+            addDebugLog('error', 'API Request failed', { url, error: error.message });
+            throw error;
+        }
+    };
+    
+    // Intercept XMLHttpRequest
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    const originalXHRSend = XMLHttpRequest.prototype.send;
+    
+    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+        this._url = url;
+        this._method = method;
+        return originalXHROpen.apply(this, [method, url, ...rest]);
+    };
+    
+    XMLHttpRequest.prototype.send = function(...args) {
+        if (this._url && (this._url.includes('learnosity') || this._url.includes('assess'))) {
+            addDebugLog('info', 'XHR Request intercepted', { 
+                url: this._url, 
+                method: this._method 
+            });
+            
+            this.addEventListener('load', function() {
+                try {
+                    const data = JSON.parse(this.responseText);
+                    addDebugLog('success', 'XHR Response intercepted', {
+                        url: this._url.substring(0, 100),
+                        status: this.status
+                    });
+                } catch (e) {
+                    // Not JSON
+                }
+            });
+        }
+        
+        return originalXHRSend.apply(this, args);
+    };
+    
+    addDebugLog('success', 'API Interceptor installed');
+}
     // ==================== ENHANCED MATCHING EXTRACTION ====================
     
     function getMatchingLabelsFromDOM() {
@@ -589,72 +755,364 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
     // ==================== AUTO-FILL FUNCTIONALITY ====================
     
     function autoFillAnswer() {
-        addDebugLog('info', 'Attempting auto-fill...');
-        
-        try {
-            const currentItem = window.LearnosityAssess.getCurrentItem();
-            const question = currentItem.questions[0];
-            const validResponse = question.validation.valid_response.value;
+    addDebugLog('info', 'Attempting auto-fill...');
+    
+    try {
+        const currentItem = window.LearnosityAssess.getCurrentItem();
+        const question = currentItem.questions[0];
+        const validResponse = question.validation.valid_response.value;
 
-            if (question.type === "mcq") {
-                const radios = document.querySelectorAll('input[type="radio"]');
-                const correctValue = Array.isArray(validResponse) ? validResponse[0] : validResponse;
-                
-                let filled = false;
-                radios.forEach(radio => {
-                    if (radio.value === correctValue || radio.value === correctValue.value) {
-                        radio.click();
-                        filled = true;
-                        addDebugLog('success', 'MCQ auto-filled', { value: radio.value });
+        if (question.type === "mcq") {
+            const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+            const radios = document.querySelectorAll('input[type="radio"]');
+            
+            let filled = 0;
+            radios.forEach(radio => {
+                const isCorrect = correctValues.some(val => 
+                    radio.value === val || radio.value === (typeof val === 'object' ? val.value : val)
+                );
+                if (isCorrect) {
+                    radio.click();
+                    filled++;
+                    addDebugLog('success', 'MCQ auto-filled', { value: radio.value });
+                }
+            });
+            
+            if (filled === 0) addDebugLog('warning', 'No matching radio button found');
+            alert(`Answer auto-filled! (${filled} option${filled !== 1 ? 's' : ''})`);
+            
+        } else if (question.type === "choicematrix") {
+            const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            let filledCount = 0;
+            
+            correctValues.forEach(val => {
+                checkboxes.forEach(checkbox => {
+                    const checkValue = typeof val === 'object' ? val.value : val;
+                    if (checkbox.value === checkValue) {
+                        if (!checkbox.checked) checkbox.click();
+                        filledCount++;
                     }
                 });
+            });
+            
+            addDebugLog('success', `Checkboxes auto-filled: ${filledCount}`);
+            alert(`Answer auto-filled! (${filledCount} option${filledCount !== 1 ? 's' : ''})`);
+            
+        } else if (question.type === "association") {
+            addDebugLog('warning', 'Auto-fill for matching questions not fully supported yet');
+            alert("Matching questions require manual drag-and-drop. The correct pairs are shown in the Response tab.");
+            
+        } else if (question.type === "clozedropdown") {
+            const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+            const selects = document.querySelectorAll('select');
+            answers.forEach((answer, index) => {
+                if (selects[index]) {
+                    selects[index].value = answer;
+                    selects[index].dispatchEvent(new Event('change', { bubbles: true }));
+                    addDebugLog('success', `Dropdown ${index} filled`, { answer });
+                }
+            });
+            alert("Answer auto-filled!");
+            
+        } else if (question.type === "clozetext") {
+            const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+            const inputs = document.querySelectorAll('input[type="text"]');
+            answers.forEach((answer, index) => {
+                if (inputs[index]) {
+                    inputs[index].value = answer;
+                    inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                    addDebugLog('success', `Text input ${index} filled`, { answer });
+                }
+            });
+            alert("Answer auto-filled!");
+            
+        } else if (question.type === "orderlist") {
+            addDebugLog('warning', 'Order list requires drag-and-drop');
+            alert("Order list questions require manual interaction. Check Response tab for correct order.");
+            
+        } else if (question.type === "formulaV2" || question.type === "chemistry") {
+            const input = document.querySelector('input[data-lrn-component="formula"], input[type="text"]');
+            if (input && validResponse) {
+                input.value = validResponse;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                addDebugLog('success', 'Formula filled', { answer: validResponse });
+                alert("Formula auto-filled!");
+            } else {
+                alert("Could not find formula input field");
+            }
+            
+        } else if (question.type === "plaintext" || question.type === "shorttext" || question.type === "longtext") {
+            const textarea = document.querySelector('textarea');
+            if (textarea && validResponse) {
+                textarea.value = validResponse;
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                addDebugLog('success', 'Text response filled', { answer: validResponse });
+                alert("Text answer auto-filled!");
+            } else {
+                alert("Could not find text input area");
+            }
+            
+        } else {
+            addDebugLog('warning', `Auto-fill not supported for type: ${question.type}`);
+            alert(`Auto-fill not supported for question type: ${question.type}`);
+            return;
+        }
+        
+    } catch (error) {
+        addDebugLog('error', 'Auto-fill error: ' + error.message, error);
+        alert("Error auto-filling: " + error.message);
+    }
+}
+   // ==================== ENHANCED AUTO-COMPLETE ====================
+
+async function autoCompleteAssignment(realistic = false) {
+    addDebugLog('info', `Auto-complete assignment started (${realistic ? 'realistic' : 'perfect'} mode)`);
+    
+    const buttonId = realistic ? 'auto-complete-realistic' : 'auto-complete';
+    const completeButton = document.getElementById(buttonId);
+    const originalText = completeButton.textContent;
+    
+    try {
+        completeButton.disabled = true;
+        completeButton.textContent = '⏳ Initializing...';
+        
+        // Check for saved progress
+        let progress = loadProgress();
+        let questionsCompleted = progress?.questionsCompleted || 0;
+        let questionsWrong = progress?.questionsWrong || [];
+        const startQuestion = questionsCompleted;
+        
+        if (progress && questionsCompleted > 0) {
+            const resume = confirm(`Found saved progress: ${questionsCompleted} questions completed.\n\nResume from where you left off?`);
+            if (!resume) {
+                questionsCompleted = 0;
+                questionsWrong = [];
+                clearProgress();
+            }
+        }
+        
+        const maxQuestions = 200; // Safety limit
+        const targetWrongCount = realistic ? (1 + Math.floor(Math.random() * 2)) : 0; // 1-2 wrong answers
+        
+        while (questionsCompleted < maxQuestions) {
+            // Check if we're still on a valid question page
+            const currentItem = window.LearnosityAssess?.getCurrentItem();
+            if (!currentItem || !currentItem.questions || !currentItem.questions[0]) {
+                addDebugLog('info', 'No more questions found - assignment complete!');
+                break;
+            }
+            
+            const question = currentItem.questions[0];
+            const questionType = question.type;
+            const validResponse = question.validation?.valid_response?.value;
+            
+            if (!validResponse) {
+                addDebugLog('warning', 'No valid response found for current question');
+                break;
+            }
+            
+            // Calculate reading time based on question text
+            const questionText = stripHTML(question.stimulus || '');
+            const readingTime = calculateReadingTime(questionText);
+            
+            completeButton.textContent = `📖 Reading (${(readingTime/1000).toFixed(1)}s)...`;
+            await new Promise(resolve => setTimeout(resolve, readingTime));
+            
+            // Simulate mouse movement
+            if (realistic) {
+                completeButton.textContent = `🖱️ Thinking...`;
+                await simulateMouseMovement();
+                await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1500)); // Extra think time
+            }
+            
+            // Decide if this should be a wrong answer (realistic mode only)
+            const shouldAnswerWrong = realistic && 
+                                     questionsWrong.length < targetWrongCount && 
+                                     Math.random() < 0.15 && // 15% chance per question
+                                     (questionType === "mcq" || questionType === "choicematrix");
+            
+            let answered = false;
+            
+            // Answer the question based on type
+            if (questionType === "mcq") {
+                const radios = document.querySelectorAll('input[type="radio"]');
+                const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
                 
-                if (!filled) addDebugLog('warning', 'No matching radio button found');
-                alert("Answer auto-filled!");
+                if (shouldAnswerWrong) {
+                    // Pick a plausible wrong answer
+                    const wrongRadios = Array.from(radios).filter(radio => 
+                        !correctValues.some(val => radio.value === val || radio.value === (typeof val === 'object' ? val.value : val))
+                    );
+                    if (wrongRadios.length > 0) {
+                        const wrongChoice = wrongRadios[Math.floor(Math.random() * wrongRadios.length)];
+                        wrongChoice.click();
+                        questionsWrong.push(questionsCompleted);
+                        addDebugLog('info', `Intentionally answered wrong (realistic mode)`, { question: questionsCompleted });
+                        answered = true;
+                    }
+                }
                 
-            } else if (question.type === "choicematrix") {
-                const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-                let filledCount = 0;
-                
-                validResponse.forEach(val => {
-                    checkboxes.forEach(checkbox => {
-                        if (checkbox.value === val || checkbox.value === val.value) {
-                            checkbox.click();
-                            filledCount++;
+                if (!answered) {
+                    radios.forEach(radio => {
+                        const isCorrect = correctValues.some(val => 
+                            radio.value === val || radio.value === (typeof val === 'object' ? val.value : val)
+                        );
+                        if (isCorrect) {
+                            radio.click();
+                            answered = true;
                         }
                     });
-                });
+                }
                 
-                addDebugLog('success', `Checkboxes auto-filled: ${filledCount}`);
-                alert("Answer auto-filled!");
+            } else if (questionType === "choicematrix") {
+                const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+                const checkboxes = document.querySelectorAll('input[type="checkbox"]');
                 
-            } else if (question.type === "association") {
-                addDebugLog('warning', 'Auto-fill for matching questions not fully supported yet');
-                alert("Matching questions require manual drag-and-drop. The correct pairs are shown in the Response tab.");
+                if (shouldAnswerWrong && correctValues.length > 1) {
+                    // Select all but one correct answer, or add one wrong one
+                    const strategy = Math.random() < 0.5 ? 'omit' : 'add';
+                    
+                    if (strategy === 'omit') {
+                        // Select all but skip one correct answer
+                        const skipIndex = Math.floor(Math.random() * correctValues.length);
+                        correctValues.forEach((val, idx) => {
+                            if (idx !== skipIndex) {
+                                checkboxes.forEach(checkbox => {
+                                    const checkValue = typeof val === 'object' ? val.value : val;
+                                    if (checkbox.value === checkValue && !checkbox.checked) {
+                                        checkbox.click();
+                                        answered = true;
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        // Add all correct plus one wrong
+                        correctValues.forEach(val => {
+                            checkboxes.forEach(checkbox => {
+                                const checkValue = typeof val === 'object' ? val.value : val;
+                                if (checkbox.value === checkValue && !checkbox.checked) {
+                                    checkbox.click();
+                                    answered = true;
+                                }
+                            });
+                        });
+                        
+                        // Add one wrong
+                        const wrongBoxes = Array.from(checkboxes).filter(cb => 
+                            !correctValues.some(val => cb.value === (typeof val === 'object' ? val.value : val))
+                        );
+                        if (wrongBoxes.length > 0) {
+                            wrongBoxes[0].click();
+                        }
+                    }
+                    
+                    questionsWrong.push(questionsCompleted);
+                    addDebugLog('info', `Intentionally answered wrong (realistic mode)`, { question: questionsCompleted });
+                    
+                } else {
+                    // Answer correctly - select ALL valid responses
+                    correctValues.forEach(val => {
+                        checkboxes.forEach(checkbox => {
+                            const checkValue = typeof val === 'object' ? val.value : val;
+                            if (checkbox.value === checkValue && !checkbox.checked) {
+                                checkbox.click();
+                                answered = true;
+                            }
+                        });
+                    });
+                }
                 
-            } else if (question.type === "clozedropdown") {
+            } else if (questionType === "clozedropdown") {
+                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
                 const selects = document.querySelectorAll('select');
-                validResponse.forEach((answer, index) => {
+                answers.forEach((answer, index) => {
                     if (selects[index]) {
                         selects[index].value = answer;
                         selects[index].dispatchEvent(new Event('change', { bubbles: true }));
-                        addDebugLog('success', `Dropdown ${index} filled`, { answer });
+                        answered = true;
                     }
                 });
-                alert("Answer auto-filled!");
                 
-            } else {
-                addDebugLog('warning', `Auto-fill not supported for type: ${question.type}`);
-                alert(`Auto-fill not supported for question type: ${question.type}`);
-                return;
+            } else if (questionType === "clozetext") {
+                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+                const inputs = document.querySelectorAll('input[type="text"]');
+                answers.forEach((answer, index) => {
+                    if (inputs[index]) {
+                        inputs[index].value = answer;
+                        inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                        answered = true;
+                    }
+                });
+                
+            } else if (questionType === "formulaV2" || questionType === "chemistry") {
+                const input = document.querySelector('input[data-lrn-component="formula"], input[type="text"]');
+                if (input) {
+                    input.value = validResponse;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    answered = true;
+                }
+                
+            } else if (questionType === "plaintext" || questionType === "shorttext" || questionType === "longtext") {
+                const textarea = document.querySelector('textarea');
+                if (textarea) {
+                    textarea.value = validResponse;
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    answered = true;
+                }
             }
             
-        } catch (error) {
-            addDebugLog('error', 'Auto-fill error: ' + error.message, error);
-            alert("Error auto-filling: " + error.message);
+            if (!answered) {
+                addDebugLog('warning', `Could not auto-fill question type: ${questionType}`);
+                alert(`Stopped at question ${questionsCompleted + 1}\nType: ${questionType} (not supported for auto-complete)\n\nProgress has been saved.`);
+                saveProgress({ questionsCompleted, questionsWrong });
+                break;
+            }
+            
+            questionsCompleted++;
+            addDebugLog('success', `Question ${questionsCompleted} completed`);
+            
+            // Save progress periodically
+            if (questionsCompleted % 5 === 0) {
+                saveProgress({ questionsCompleted, questionsWrong });
+            }
+            
+            // Random delay before clicking next (5-7 seconds)
+            const nextDelay = 5000 + Math.floor(Math.random() * 2000);
+            completeButton.textContent = `⏳ Next in ${(nextDelay/1000).toFixed(1)}s... (${questionsCompleted} done${realistic ? `, ${questionsWrong.length} wrong` : ''})`;
+            await new Promise(resolve => setTimeout(resolve, nextDelay));
+            
+            // Click next button
+            const nextButton = document.querySelector("#nextPage > button");
+            if (nextButton && !nextButton.disabled) {
+                nextButton.click();
+                await new Promise(resolve => setTimeout(resolve, 1500)); // Wait for page load
+            } else {
+                addDebugLog('info', 'Next button not found or disabled - reached end');
+                break;
+            }
         }
+        
+        clearProgress(); // Clear progress when complete
+        
+        const totalQuestions = questionsCompleted - startQuestion;
+        const accuracy = realistic ? 
+            `${totalQuestions - questionsWrong.length}/${totalQuestions} correct (${((totalQuestions - questionsWrong.length) / totalQuestions * 100).toFixed(1)}%)` :
+            `${totalQuestions}/${totalQuestions} correct (100%)`;
+        
+        addDebugLog('success', `Auto-complete finished! ${totalQuestions} questions completed`);
+        alert(`✅ Assignment Complete!\n\n${accuracy}\n${realistic ? `Wrong answers: ${questionsWrong.map(q => q + 1).join(', ')}` : 'Perfect score!'}`);
+        
+    } catch (error) {
+        addDebugLog('error', 'Auto-complete error: ' + error.message, error);
+        saveProgress({ questionsCompleted, questionsWrong }); // Save on error
+        alert('Error during auto-complete: ' + error.message + '\n\nProgress has been saved.');
+    } finally {
+        completeButton.disabled = false;
+        completeButton.textContent = originalText;
     }
-
+}
     // ==================== AI FUNCTIONALITY ====================
     
   function extractQuestionForAI() {
@@ -885,6 +1343,46 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
     // Auto-fill
     document.getElementById('auto-fill-answer').addEventListener('click', autoFillAnswer);
 
+   // Auto-complete (perfect)
+document.getElementById('auto-complete').addEventListener('click', () => {
+    const confirmed = confirm('⚠️ AUTO-COMPLETE (PERFECT SCORE)\n\n' +
+                             '✓ All answers correct (100%)\n' +
+                             '✓ Random 5-7 second delays\n' +
+                             '✓ Simulated reading time\n' +
+                             '✓ Smart resume if interrupted\n' +
+                             '✓ Supports most question types\n\n' +
+                             '⚠️ WARNING: Perfect scores may look suspicious!\n\n' +
+                             'Continue?');
+    if (confirmed) {
+        autoCompleteAssignment(false);
+    }
+});
+
+// Auto-complete (realistic)
+document.getElementById('auto-complete-realistic').addEventListener('click', () => {
+    const confirmed = confirm('🎭 AUTO-COMPLETE (REALISTIC MODE)\n\n' +
+                             '✓ Gets 1-2 answers wrong (85-95% score)\n' +
+                             '✓ Random mouse movements\n' +
+                             '✓ Simulated reading time\n' +
+                             '✓ Smart human-like delays\n' +
+                             '✓ Plausible wrong answers\n' +
+                             '✓ Smart resume if interrupted\n\n' +
+                             '✅ RECOMMENDED: Looks more natural!\n\n' +
+                             'Continue?');
+    if (confirmed) {
+        autoCompleteAssignment(true);
+    }
+});
+
+// Clear progress
+document.getElementById('clear-progress').addEventListener('click', () => {
+    const confirmed = confirm('Clear saved auto-complete progress?\n\nThis will delete your resume point.');
+    if (confirmed) {
+        clearProgress();
+        alert('Progress cleared!');
+    }
+});
+    
     // Highlight correct - FIXED
     document.getElementById('highlight-correct').addEventListener('click', () => {
         addDebugLog('info', 'Highlight correct clicked');
@@ -1489,4 +1987,6 @@ if (window.location.href.includes('www.connexus.com')) {
             iframe.dataset.buttonAdded = "true";
         }
     }, 100);
+    // Initialize API Interceptor
+    setupAPIInterceptor();
 }
