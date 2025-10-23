@@ -1103,7 +1103,59 @@ async function autoCompleteAssignment(realistic = false) {
             `${totalQuestions}/${totalQuestions} correct (100%)`;
         
         addDebugLog('success', `Auto-complete finished! ${totalQuestions} questions completed`);
-        alert(`✅ Assignment Complete!\n\n${accuracy}\n${realistic ? `Wrong answers: ${questionsWrong.map(q => q + 1).join(', ')}` : 'Perfect score!'}`);
+        
+        // Try to submit the assignment
+        completeButton.textContent = '📤 Submitting...';
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before submit
+        
+        let submitted = false;
+        
+        // Method 1: Try Learnosity API submit
+        try {
+            if (window.LearnosityAssess && typeof window.LearnosityAssess.submit === 'function') {
+                window.LearnosityAssess.submit();
+                addDebugLog('success', 'Submitted via Learnosity API');
+                submitted = true;
+            }
+        } catch (e) {
+            addDebugLog('warning', 'Learnosity API submit failed', e);
+        }
+        
+        // Method 2: Try finding submit button
+        if (!submitted) {
+            const submitButton = document.querySelector(
+                'button[data-action="submit"], ' +
+                'button[type="submit"], ' +
+                '.lrn-submit-button, ' +
+                'button.submit-btn, ' +
+                '#submit-button, ' +
+                'button:contains("Submit"), ' +
+                'button:contains("Finish")'
+            );
+            
+            if (submitButton) {
+                submitButton.click();
+                addDebugLog('success', 'Submitted via submit button');
+                submitted = true;
+            }
+        }
+        
+        // Method 3: Try form submission
+        if (!submitted) {
+            const form = document.querySelector('form');
+            if (form) {
+                form.submit();
+                addDebugLog('success', 'Submitted via form');
+                submitted = true;
+            }
+        }
+        
+        if (submitted) {
+            alert(`✅ Assignment Complete & Submitted!\n\n${accuracy}\n${realistic ? `Wrong answers: ${questionsWrong.map(q => q + 1).join(', ')}` : 'Perfect score!'}\n\n✓ Assignment has been submitted!`);
+        } else {
+            addDebugLog('warning', 'Could not auto-submit - manual submission required');
+            alert(`✅ Assignment Complete!\n\n${accuracy}\n${realistic ? `Wrong answers: ${questionsWrong.map(q => q + 1).join(', ')}` : 'Perfect score!'}\n\n⚠️ Could not auto-submit. Please click the Submit button manually.`);
+        }
         
     } catch (error) {
         addDebugLog('error', 'Auto-complete error: ' + error.message, error);
