@@ -48,7 +48,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             return `<div style="margin-bottom: 8px; padding: 8px; background: #f9fafb; border-radius: 4px;">
                 <span style="color: #6b7280; font-size: 0.75rem;">${log.timestamp}</span>
                 <div style="${colorClass}">${log.message}</div>
-                ${log.data ? `<pre style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">${JSON.stringify(log.data, null, 2)}</pre>` : ''}
+                ${log.data ? `<pre style="font-size: 0.75rem; color: #6b7280; margin-top: 4px; overflow-x: auto;">${JSON.stringify(log.data, null, 2)}</pre>` : ''}
             </div>`;
         }).join('');
         
@@ -67,7 +67,26 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 left: 1rem;
                 z-index: 9999;
                 font-family: system-ui, -apple-system, sans-serif;
+                transform-origin: top left;
             }
+            
+            @media (max-width: 768px) {
+                .modern-menu {
+                    transform: scale(0.85);
+                    top: 0.5rem;
+                    left: 0.5rem;
+                    padding: 0.5rem;
+                }
+            }
+            
+            @media (max-width: 480px) {
+                .modern-menu {
+                    transform: scale(0.7);
+                    top: 0.25rem;
+                    left: 0.25rem;
+                }
+            }
+            
             .menu-button {
                 background: #111827;
                 color: white;
@@ -100,10 +119,12 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 background: #f9f9f9;
                 border-radius: 10px;
                 width: 90%;
+                flex-wrap: wrap;
             }
             .tab {
                 flex: 1;
-                padding: 0.75rem;
+                min-width: 80px;
+                padding: 0.75rem 0.5rem;
                 background: none;
                 border: none;
                 cursor: pointer;
@@ -111,6 +132,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 color: #6b7280;
                 transition: all 0.2s;
                 border-bottom: 2px solid transparent;
+                font-size: 0.85rem;
             }
             .tab.active {
                 color: black;
@@ -195,6 +217,27 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             #clear-logs:hover {
                 background: #dc2626;
             }
+            .match-pair {
+                padding: 0.75rem;
+                margin-bottom: 0.5rem;
+                background: #f9fafb;
+                border-left: 3px solid #3b82f6;
+                border-radius: 0.375rem;
+            }
+            .match-label {
+                display: inline-block;
+                background: #e5e7eb;
+                padding: 0.25rem 0.5rem;
+                border-radius: 0.25rem;
+                font-weight: bold;
+                font-size: 0.75rem;
+                margin-right: 0.5rem;
+            }
+            .match-arrow {
+                color: #3b82f6;
+                font-weight: bold;
+                margin: 0 0.5rem;
+            }
         `;
         document.head.appendChild(styleSheet);
     }
@@ -220,6 +263,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             '<i class="fa-solid fa-shield-dog"></i> cheats',
             '<i class="fa-regular fa-message"></i> response',
             '<i class="fa-solid fa-brain"></i> AI',
+            '<i class="fa-solid fa-info-circle"></i> info',
             '<i class="fa-solid fa-bug"></i> debug'
         ];
         
@@ -240,8 +284,9 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             'show-all-answers',
             'auto-fill-answer',
             'copy-question',
-            'explanation',
-            'question-info',
+            'highlight-correct',
+            'show-hints',
+            'question-metadata',
             'random-answer',
             'skip-to-next'
         ];
@@ -299,6 +344,13 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         aiContent.appendChild(inputContainer);
         aiContent.appendChild(botAnswer);
 
+        // Info tab
+        const infoContent = createTabContent('<i class="fa-solid fa-info-circle"></i> info');
+        const infoDisplay = document.createElement('div');
+        infoDisplay.id = 'info-display';
+        infoDisplay.innerHTML = '<div style="color: #6b7280;">Question info will appear here...</div>';
+        infoContent.appendChild(infoDisplay);
+
         // Debug tab
         const debugContent = createTabContent('<i class="fa-solid fa-bug"></i> debug');
         debugContent.setAttribute('data-content', 'debug');
@@ -312,6 +364,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         menuContainer.appendChild(cheatsContent);
         menuContainer.appendChild(responseContent);
         menuContainer.appendChild(aiContent);
+        menuContainer.appendChild(infoContent);
         menuContainer.appendChild(debugContent);
 
         menu.appendChild(menuContainer);
@@ -338,6 +391,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
     // ==================== HELPER FUNCTIONS ====================
     
     function stripHTML(html) {
+        if (!html) return '';
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
         return tmp.textContent || tmp.innerText || '';
@@ -349,6 +403,99 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                text.includes('</math>') || 
                text.match(/\\\(|\\\[|\$\$?|\\begin{/) ||
                text.match(/\\frac|\\sqrt|\\sum|\\int|\\lim/);
+    }
+
+    // ==================== ENHANCED MATCHING EXTRACTION ====================
+    
+    function getMatchingLabelsFromDOM() {
+        // Try to extract actual text from DOM elements
+        const leftItems = [];
+        const rightItems = [];
+        
+        // Look for stimulus items in the DOM
+        const stimulusElements = document.querySelectorAll('.lrn_stimulus_item, .lrn-stimulus-item');
+        stimulusElements.forEach(el => {
+            const text = stripHTML(el.innerHTML);
+            if (text) leftItems.push(text);
+        });
+        
+        // Look for response items
+        const responseElements = document.querySelectorAll('.lrn_response_item, .lrn-response-item, [draggable="true"]');
+        responseElements.forEach(el => {
+            const text = stripHTML(el.innerHTML);
+            if (text) rightItems.push(text);
+        });
+        
+        return { leftItems, rightItems };
+    }
+
+    function formatMatchingAnswer(question, validResponse) {
+        addDebugLog('info', 'Formatting matching answer', { validResponse });
+        
+        let matches = [];
+        const domData = getMatchingLabelsFromDOM();
+        
+        // Create lookup maps
+        const leftMap = new Map();
+        const rightMap = new Map();
+        
+        // Map stimulus list (left column)
+        if (question.stimulus_list) {
+            question.stimulus_list.forEach(item => {
+                leftMap.set(item.value, stripHTML(item.label || item.value));
+            });
+        }
+        
+        // Map possible responses (right column)
+        if (question.possible_responses) {
+            question.possible_responses.forEach((item, idx) => {
+                const value = typeof item === 'object' ? item.value : item;
+                const label = typeof item === 'object' ? (item.label || item.value) : item;
+                rightMap.set(value, stripHTML(label));
+            });
+        }
+        
+        // Process each match
+        validResponse.forEach((match, idx) => {
+            const leftValue = match[0];
+            const rightValue = match[1];
+            
+            // Try to get text from maps
+            let leftText = leftMap.get(leftValue) || leftValue;
+            let rightText = rightMap.get(rightValue) || rightValue;
+            
+            // If still showing codes, try DOM extraction
+            if (domData.leftItems.length > 0 && domData.rightItems.length > 0) {
+                // Try to match by index or content
+                const leftIdx = question.stimulus_list?.findIndex(item => item.value === leftValue);
+                const rightIdx = question.possible_responses?.findIndex(item => 
+                    (typeof item === 'object' ? item.value : item) === rightValue
+                );
+                
+                if (leftIdx !== -1 && domData.leftItems[leftIdx]) {
+                    leftText = domData.leftItems[leftIdx];
+                }
+                if (rightIdx !== -1 && domData.rightItems[rightIdx]) {
+                    rightText = domData.rightItems[rightIdx];
+                }
+            }
+            
+            // Format the match with labels if still showing codes
+            const leftLabel = leftText === leftValue ? `[${leftValue}]` : '';
+            const rightLabel = rightText === rightValue ? `[${rightValue}]` : '';
+            
+            matches.push({
+                left: leftText,
+                right: rightText,
+                leftLabel: leftLabel,
+                rightLabel: rightLabel,
+                leftRaw: leftValue,
+                rightRaw: rightValue
+            });
+        });
+        
+        addDebugLog('success', 'Matching pairs formatted', { matches });
+        return matches;
     }
 
     // ==================== ANSWER EXTRACTION ====================
@@ -398,27 +545,17 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 };
             }
             
-            // Association (Matching)
+            // Association (Matching) - ENHANCED
             else if (questionType === "association") {
                 const validResponse = question.validation.valid_response.value;
-                let matches = [];
+                const matches = formatMatchingAnswer(question, validResponse);
                 
-                validResponse.forEach(match => {
-                    const leftItem = question.stimulus_list.find(item => item.value === match[0]);
-                    const rightItem = match[1];
-                    
-                    const leftText = leftItem ? stripHTML(leftItem.label) : match[0];
-                    const rightText = stripHTML(rightItem);
-                    
-                    matches.push(`"${leftText}" → "${rightText}"`);
-                });
-                
-                addDebugLog('success', 'Matching answer extracted', matches);
                 return { 
                     success: true, 
-                    answer: matches.join("\n"), 
+                    matches: matches,
                     type: questionType,
-                    hasFormat: false
+                    hasFormat: false,
+                    isMatching: true
                 };
             }
             
@@ -507,7 +644,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 
             } else if (question.type === "association") {
                 addDebugLog('warning', 'Auto-fill for matching questions not fully supported yet');
-                alert("Matching questions require manual input. The correct answers are shown in the Response tab.");
+                alert("Matching questions require manual drag-and-drop. The correct pairs are shown in the Response tab.");
                 
             } else if (question.type === "clozedropdown") {
                 const selects = document.querySelectorAll('select');
@@ -555,7 +692,8 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 });
                 aiPrompt += "\nRight column:\n";
                 question.possible_responses.forEach((item, idx) => {
-                    aiPrompt += `${idx + 1}. ${stripHTML(item)}\n`;
+                    const label = typeof item === 'object' ? item.label : item;
+                    aiPrompt += `${idx + 1}. ${stripHTML(label)}\n`;
                 });
             } else if (question.type === "clozedropdown") {
                 aiPrompt += stripHTML(question.template);
@@ -646,9 +784,38 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         if (tab) tab.click();
     }
 
-    function showResponse(text) {
+    function showResponse(content, isHTML = false) {
         const display = document.querySelector("#answers-display");
-        display.textContent = text;
+        if (isHTML) {
+            display.innerHTML = content;
+        } else {
+            display.textContent = content;
+        }
+        switchToTab('response');
+    }
+
+    function displayMatchingAnswer(matches) {
+        const display = document.querySelector("#answers-display");
+        
+        let html = '<div style="font-weight: bold; margin-bottom: 1rem; color: #111827;">Correct Matches:</div>';
+        
+        matches.forEach((match, idx) => {
+            html += `<div class="match-pair">
+                <div style="margin-bottom: 0.25rem;">
+                    <span class="match-label">Left ${match.leftLabel || match.leftRaw}</span>
+                    <strong>${match.left}</strong>
+                </div>
+                <div style="text-align: center; margin: 0.5rem 0;">
+                    <span class="match-arrow">⬇ matches ⬇</span>
+                </div>
+                <div>
+                    <span class="match-label">Right ${match.rightLabel || match.rightRaw}</span>
+                    <strong>${match.right}</strong>
+                </div>
+            </div>`;
+        });
+        
+        display.innerHTML = html;
         switchToTab('response');
     }
 
@@ -682,20 +849,23 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         });
     });
 
-    // Reveal answer
+    // Reveal answer - ENHANCED FOR MATCHING
     document.getElementById('reveal-answer').addEventListener('click', () => {
         addDebugLog('info', 'Reveal answer clicked');
         const result = getAnswerFromQuestion();
-        const answerElement = document.querySelector("#answers-display");
         
         if (!result.success) {
-            answerElement.textContent = "Error: " + result.message;
-            switchToTab('response');
+            showResponse("Error: " + result.message);
             return;
         }
 
-        answerElement.innerHTML = `<strong>Answer (${result.type}):</strong><br><br>${result.answer}`;
-        switchToTab('response');
+        if (result.isMatching) {
+            displayMatchingAnswer(result.matches);
+        } else {
+            const answerElement = document.querySelector("#answers-display");
+            answerElement.innerHTML = `<strong>Answer (${result.type}):</strong><br><br>${result.answer}`;
+            switchToTab('response');
+        }
     });
 
     // Show all answers
@@ -710,9 +880,21 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 question.options.forEach((opt, idx) => {
                     allOptions.push(`${idx + 1}. ${stripHTML(opt.label || opt.value)}`);
                 });
+                showResponse("All Options:\n\n" + allOptions.join("\n\n"));
+            } else if (question.type === "association") {
+                let output = "Left Column:\n";
+                question.stimulus_list.forEach((item, idx) => {
+                    output += `${idx + 1}. ${stripHTML(item.label)}\n`;
+                });
+                output += "\nRight Column:\n";
+                question.possible_responses.forEach((item, idx) => {
+                    const label = typeof item === 'object' ? item.label : item;
+                    output += `${idx + 1}. ${stripHTML(label)}\n`;
+                });
+                showResponse(output);
+            } else {
+                showResponse("No options available for this question type");
             }
-            
-            showResponse("All Options:\n\n" + allOptions.join("\n\n"));
         } catch (error) {
             addDebugLog('error', 'Show all answers error', error);
             showResponse("Error: " + error.message);
@@ -734,43 +916,132 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         }
     });
 
-    // Other buttons
-    document.getElementById('explanation').addEventListener('click', () => {
-        try {
-            const currentItem = window.LearnosityAssess.getCurrentItem();
-            const explanation = currentItem.questions[0].metadata?.le_incorrect_feedbacks || 
-                              "No explanation available";
-            showResponse(explanation);
-        } catch (error) {
-            showResponse("Error: " + error.message);
-        }
-    });
-
-    document.getElementById('question-info').addEventListener('click', () => {
+    // Highlight correct answer (MCQ only)
+    document.getElementById('highlight-correct').addEventListener('click', () => {
+        addDebugLog('info', 'Highlight correct clicked');
         try {
             const currentItem = window.LearnosityAssess.getCurrentItem();
             const question = currentItem.questions[0];
-            const info = `Type: ${question.type}\nPoints: ${question.metadata?.score_percentage || 'N/A'}\nDifficulty: ${question.metadata?.difficulty || 'N/A'}`;
-            showResponse(info);
+            
+            if (question.type !== "mcq" && question.type !== "choicematrix") {
+                alert("Highlighting only works for multiple choice questions");
+                return;
+            }
+            
+            const validResponse = question.validation.valid_response.value;
+            const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+            
+            // Find and highlight correct options
+            const labels = document.querySelectorAll('.lrn_option, .lrn-option, label');
+            labels.forEach(label => {
+                const input = label.querySelector('input');
+                if (input && correctValues.includes(input.value)) {
+                    label.style.background = '#dcfce7';
+                    label.style.border = '2px solid #10b981';
+                    label.style.borderRadius = '0.5rem';
+                    label.style.padding = '0.5rem';
+                }
+            });
+            
+            addDebugLog('success', 'Correct answers highlighted');
+            alert("Correct answer(s) highlighted in green!");
         } catch (error) {
+            addDebugLog('error', 'Highlight error', error);
+            alert("Error: " + error.message);
+        }
+    });
+
+    // Show hints
+    document.getElementById('show-hints').addEventListener('click', () => {
+        addDebugLog('info', 'Show hints clicked');
+        try {
+            const currentItem = window.LearnosityAssess.getCurrentItem();
+            const question = currentItem.questions[0];
+            
+            const hints = [];
+            if (question.metadata?.distractor_rationale) {
+                hints.push("Distractor Info: " + question.metadata.distractor_rationale);
+            }
+            if (question.metadata?.sample_answer) {
+                hints.push("Sample Answer: " + stripHTML(question.metadata.sample_answer));
+            }
+            if (question.metadata?.acknowledgements) {
+                hints.push("Source: " + question.metadata.acknowledgements);
+            }
+            
+            const hintText = hints.length > 0 ? hints.join("\n\n") : "No hints available for this question";
+            showResponse(hintText);
+        } catch (error) {
+            addDebugLog('error', 'Show hints error', error);
             showResponse("Error: " + error.message);
         }
     });
 
+    // Question metadata - NEW
+    document.getElementById('question-metadata').addEventListener('click', () => {
+        addDebugLog('info', 'Question metadata clicked');
+        try {
+            const currentItem = window.LearnosityAssess.getCurrentItem();
+            const question = currentItem.questions[0];
+            const metadata = question.metadata || {};
+            
+            const infoDisplay = document.getElementById('info-display');
+            let html = '<div style="font-family: monospace; font-size: 0.85rem;">';
+            
+            const fields = [
+                { label: 'Question Type', value: question.type },
+                { label: 'Reference', value: question.reference },
+                { label: 'Points', value: metadata.score_percentage },
+                { label: 'Difficulty', value: metadata.difficulty },
+                { label: 'Skills', value: metadata.skills?.join(', ') },
+                { label: 'Standard', value: metadata.le_standard_code },
+                { label: 'DOK Level', value: metadata.depth_of_knowledge },
+                { label: 'Blooms Taxonomy', value: metadata.blooms_taxonomy },
+                { label: 'Author', value: metadata.author },
+                { label: 'Status', value: metadata.status }
+            ];
+            
+            fields.forEach(field => {
+                if (field.value) {
+                    html += `<div style="margin-bottom: 0.75rem; padding: 0.5rem; background: #f9fafb; border-radius: 0.375rem;">
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem;">${field.label}</div>
+                        <div style="color: #111827; font-weight: bold;">${field.value}</div>
+                    </div>`;
+                }
+            });
+            
+            html += '</div>';
+            infoDisplay.innerHTML = html;
+            switchToTab('info');
+            addDebugLog('success', 'Metadata displayed');
+        } catch (error) {
+            addDebugLog('error', 'Metadata error', error);
+            document.getElementById('info-display').textContent = "Error: " + error.message;
+            switchToTab('info');
+        }
+    });
+
+    // Random answer
     document.getElementById('random-answer').addEventListener('click', () => {
         const inputs = document.querySelectorAll('input[type="radio"], input[type="checkbox"]');
         if (inputs.length > 0) {
             const randomInput = inputs[Math.floor(Math.random() * inputs.length)];
             randomInput.click();
             addDebugLog('info', 'Random answer selected');
+            alert("Random answer selected!");
+        } else {
+            alert("No selectable options found");
         }
     });
 
+    // Skip to next
     document.getElementById('skip-to-next').addEventListener('click', () => {
-        const nextButton = document.querySelector("#nextPage > button");
+        const nextButton = document.querySelector("#nextPage > button, .lrn-next-button, button[data-action='next']");
         if (nextButton) {
             nextButton.click();
             addDebugLog('info', 'Skipped to next');
+        } else {
+            alert("Next button not found");
         }
     });
 
@@ -834,7 +1105,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
     });
 
     // Clear logs button
-document.getElementById('clear-logs').addEventListener('click', () => {
+    document.getElementById('clear-logs').addEventListener('click', () => {
         debugLogs.length = 0;
         updateDebugDisplay();
         addDebugLog('info', 'Logs cleared');
@@ -842,13 +1113,19 @@ document.getElementById('clear-logs').addEventListener('click', () => {
 
     // Keyboard shortcuts
     document.addEventListener("keydown", function (e) {
-        if (e.key === "ArrowLeft") {
-            document.querySelector("#prevPage > button")?.click();
-        } else if (e.key === "ArrowRight") {
-            document.querySelector("#nextPage > button")?.click();
+        if (e.key === "ArrowLeft" && !e.target.matches('input, textarea')) {
+            document.querySelector("#prevPage > button, .lrn-prev-button")?.click();
+        } else if (e.key === "ArrowRight" && !e.target.matches('input, textarea')) {
+            document.querySelector("#nextPage > button, .lrn-next-button")?.click();
         } else if (e.key === 'p' && e.altKey) {
             e.preventDefault();
             document.getElementById('reveal-answer').click();
+        } else if (e.key === 'a' && e.altKey) {
+            e.preventDefault();
+            document.getElementById('auto-fill-answer').click();
+        } else if (e.key === 'h' && e.altKey) {
+            e.preventDefault();
+            document.getElementById('highlight-correct').click();
         }
     });
 
@@ -862,8 +1139,8 @@ document.getElementById('clear-logs').addEventListener('click', () => {
     mathJaxConfig.text = `
         window.MathJax = {
             tex: {
-                inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
-                displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+                inlineMath: [[', '], ['\\\\(', '\\\\)']],
+                displayMath: [['$', '$'], ['\\\\[', '\\\\]']],
                 processEscapes: true
             },
             svg: {
@@ -879,6 +1156,11 @@ document.getElementById('clear-logs').addEventListener('click', () => {
     document.head.appendChild(mathJaxScript);
 
     console.log('%c✓ Enhanced Learnosity Script Loaded', 'color: #10b981; font-weight: bold; font-size: 14px;');
+    console.log('%cKeyboard Shortcuts:', 'color: #3b82f6; font-weight: bold;');
+    console.log('%c  Alt+P: Reveal Answer', 'color: #6b7280;');
+    console.log('%c  Alt+A: Auto-fill Answer', 'color: #6b7280;');
+    console.log('%c  Alt+H: Highlight Correct', 'color: #6b7280;');
+    console.log('%c  Arrow Keys: Navigate Questions', 'color: #6b7280;');
 }
 
 // ==================== CONNEXUS IFRAME BUTTON ====================
