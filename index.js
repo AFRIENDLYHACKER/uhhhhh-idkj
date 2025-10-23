@@ -1955,6 +1955,8 @@ Average Score: ${metadata.average_score || 'N/A'}`;
     console.log('%c  Alt+A: Auto-fill Answer', 'color: #6b7280;');
     console.log('%c  Alt+H: Highlight Correct', 'color: #6b7280;');
     console.log('%c  Arrow Keys: Navigate Questions', 'color: #6b7280;');
+        // Initialize API Interceptor
+    setupAPIInterceptor();
 }
 
 // ==================== CONNEXUS IFRAME BUTTON ====================
@@ -1988,6 +1990,4 @@ if (window.location.href.includes('www.connexus.com')) {
             iframe.dataset.buttonAdded = "true";
         }
     }, 100);
-    // Initialize API Interceptor
-    setupAPIInterceptor();
 }
