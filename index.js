@@ -1905,7 +1905,7 @@ Average Score: ${metadata.average_score || 'N/A'}`;
         addDebugLog('info', 'Logs cleared');
     });
 
-    // Keyboard shortcuts
+// Keyboard shortcuts
     document.addEventListener("keydown", function (e) {
         if (e.key === "ArrowLeft" && !e.target.matches('input, textarea')) {
             document.querySelector("#prevPage > button, .lrn-prev-button")?.click();
@@ -1933,8 +1933,8 @@ Average Score: ${metadata.average_score || 'N/A'}`;
     mathJaxConfig.text = `
         window.MathJax = {
             tex: {
-                inlineMath: [[', '], ['\\\\(', '\\\\)']],
-                displayMath: [['$', '$'], ['\\\\[', '\\\\]']],
+                inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
                 processEscapes: true
             },
             svg: {
@@ -1949,16 +1949,17 @@ Average Score: ${metadata.average_score || 'N/A'}`;
     mathJaxScript.async = true;
     document.head.appendChild(mathJaxScript);
 
+    // Initialize API Interceptor
+    setupAPIInterceptor();
+
     console.log('%c✓ Enhanced Learnosity Script Loaded', 'color: #10b981; font-weight: bold; font-size: 14px;');
     console.log('%cKeyboard Shortcuts:', 'color: #3b82f6; font-weight: bold;');
     console.log('%c  Alt+P: Reveal Answer', 'color: #6b7280;');
     console.log('%c  Alt+A: Auto-fill Answer', 'color: #6b7280;');
     console.log('%c  Alt+H: Highlight Correct', 'color: #6b7280;');
     console.log('%c  Arrow Keys: Navigate Questions', 'color: #6b7280;');
-        // Initialize API Interceptor
-    setupAPIInterceptor();
-}
 
+} 
 // ==================== CONNEXUS IFRAME BUTTON ====================
 
 if (window.location.href.includes('www.connexus.com')) {
