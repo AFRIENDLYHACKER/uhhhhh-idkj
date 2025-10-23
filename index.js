@@ -279,29 +279,30 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         // Cheats tab with 20 options
         const cheatsContent = createTabContent('<i class="fa-solid fa-shield-dog"></i> cheats', true);
         const buttons = [
-            { id: 'reveal-answer', text: '🎯 Reveal Answer', color: '#059669' },
-            { id: 'auto-fill-answer', text: '⚡ Auto Fill Answer', color: '#dc2626' },
-            { id: 'auto-complete', text: '🚀 Auto Complete Assignment', color: '#7c3aed' }
-            { id: 'auto-complete-realistic', text: '🎭 Auto Complete (Realistic)', color: '#ec4899' },
-            { id: 'highlight-correct', text: '✨ Highlight Correct', color: '#f59e0b' },
-            { id: 'show-all-answers', text: '📋 Show All Options', color: '#3b82f6' },
-            { id: 'copy-question', text: '📄 Copy Question Text', color: '#6366f1' },
-            { id: 'copy-answer', text: '📝 Copy Answer Only', color: '#8b5cf6' },
-            { id: 'explanation', text: '💡 Show Explanation', color: '#06b6d4' },
-            { id: 'show-hints', text: '🔍 Show Hints', color: '#14b8a6' },
-            { id: 'question-info', text: 'ℹ️ Question Details', color: '#64748b' },
-            { id: 'question-metadata', text: '📊 Full Metadata', color: '#475569' },
-            { id: 'remove-wrong', text: '❌ Remove Wrong Answers', color: '#ef4444' },
-            { id: 'show-scoring', text: '🎓 Show Scoring Info', color: '#84cc16' },
-            { id: 'freeze-timer', text: '⏸️ Freeze Timer', color: '#f97316' },
-            { id: 'show-standards', text: '📚 Show Standards', color: '#0ea5e9' },
-            { id: 'extract-all-data', text: '🗂️ Extract All Data', color: '#8b5cf6' },
-            { id: 'random-answer', text: '🎲 Random Answer', color: '#ec4899' },
-            { id: 'skip-to-next', text: '⏭️ Skip to Next', color: '#6b7280' },
-            { id: 'skip-to-prev', text: '⏮️ Skip to Previous', color: '#6b7280' },
-            { id: 'flag-question', text: '🚩 Flag Question', color: '#f43f5e' },
-            { id: 'show-difficulty', text: '⚖️ Show Difficulty', color: '#a855f7' }
-        ];
+    { id: 'reveal-answer', text: '🎯 Reveal Answer', color: '#059669' },
+    { id: 'auto-fill-answer', text: '⚡ Auto Fill Answer', color: '#dc2626' },
+    { id: 'auto-complete', text: '🚀 Auto Complete (Perfect)', color: '#7c3aed' },
+    { id: 'auto-complete-realistic', text: '🎭 Auto Complete (Realistic)', color: '#ec4899' },
+    { id: 'highlight-correct', text: '✨ Highlight Correct', color: '#f59e0b' },
+    { id: 'show-all-answers', text: '📋 Show All Options', color: '#3b82f6' },
+    { id: 'copy-question', text: '📄 Copy Question Text', color: '#6366f1' },
+    { id: 'copy-answer', text: '📝 Copy Answer Only', color: '#8b5cf6' },
+    { id: 'explanation', text: '💡 Show Explanation', color: '#06b6d4' },
+    { id: 'show-hints', text: '🔍 Show Hints', color: '#14b8a6' },
+    { id: 'question-info', text: 'ℹ️ Question Details', color: '#64748b' },
+    { id: 'question-metadata', text: '📊 Full Metadata', color: '#475569' },
+    { id: 'remove-wrong', text: '❌ Remove Wrong Answers', color: '#ef4444' },
+    { id: 'show-scoring', text: '🎓 Show Scoring Info', color: '#84cc16' },
+    { id: 'freeze-timer', text: '⏸️ Freeze Timer', color: '#f97316' },
+    { id: 'show-standards', text: '📚 Show Standards', color: '#0ea5e9' },
+    { id: 'extract-all-data', text: '🗂️ Extract All Data', color: '#8b5cf6' },
+    { id: 'random-answer', text: '🎲 Random Answer', color: '#ec4899' },
+    { id: 'skip-to-next', text: '⏭️ Skip to Next', color: '#6b7280' },
+    { id: 'skip-to-prev', text: '⏮️ Skip to Previous', color: '#6b7280' },
+    { id: 'flag-question', text: '🚩 Flag Question', color: '#f43f5e' },
+    { id: 'show-difficulty', text: '⚖️ Show Difficulty', color: '#a855f7' },
+    { id: 'clear-progress', text: '🗑️ Clear Saved Progress', color: '#991b1b' }
+];
         
         buttons.forEach(btn => {
             const button = document.createElement('button');
