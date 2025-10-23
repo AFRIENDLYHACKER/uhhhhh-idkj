@@ -26,7 +26,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         const log = { timestamp, type, message, data };
         debugLogs.push(log);
         
-        // Update debug tab if it exists
         const debugContent = document.querySelector('[data-content="debug"]');
         if (debugContent) {
             updateDebugDisplay();
@@ -165,6 +164,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 cursor: pointer;
                 margin-bottom: 0.5rem;
                 transition: all 0.2s;
+                font-size: 0.875rem;
             }
             .action-button:hover {
                 background: #1f2937;
@@ -263,7 +263,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             '<i class="fa-solid fa-shield-dog"></i> cheats',
             '<i class="fa-regular fa-message"></i> response',
             '<i class="fa-solid fa-brain"></i> AI',
-            '<i class="fa-solid fa-info-circle"></i> info',
             '<i class="fa-solid fa-bug"></i> debug'
         ];
         
@@ -277,28 +276,37 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
 
         menuContainer.appendChild(tabsContainer);
 
-        // Cheats tab
+        // Cheats tab with 20 options
         const cheatsContent = createTabContent('<i class="fa-solid fa-shield-dog"></i> cheats', true);
         const buttons = [
-            'reveal-answer',
-            'show-all-answers',
-            'auto-fill-answer',
-            'copy-question',
-            'highlight-correct',
-            'show-hints',
-            'question-metadata',
-            'random-answer',
-            'skip-to-next'
+            { id: 'reveal-answer', text: '🎯 Reveal Answer', color: '#059669' },
+            { id: 'auto-fill-answer', text: '⚡ Auto Fill Answer', color: '#dc2626' },
+            { id: 'highlight-correct', text: '✨ Highlight Correct', color: '#f59e0b' },
+            { id: 'show-all-answers', text: '📋 Show All Options', color: '#3b82f6' },
+            { id: 'copy-question', text: '📄 Copy Question Text', color: '#6366f1' },
+            { id: 'copy-answer', text: '📝 Copy Answer Only', color: '#8b5cf6' },
+            { id: 'explanation', text: '💡 Show Explanation', color: '#06b6d4' },
+            { id: 'show-hints', text: '🔍 Show Hints', color: '#14b8a6' },
+            { id: 'question-info', text: 'ℹ️ Question Details', color: '#64748b' },
+            { id: 'question-metadata', text: '📊 Full Metadata', color: '#475569' },
+            { id: 'remove-wrong', text: '❌ Remove Wrong Answers', color: '#ef4444' },
+            { id: 'show-scoring', text: '🎓 Show Scoring Info', color: '#84cc16' },
+            { id: 'freeze-timer', text: '⏸️ Freeze Timer', color: '#f97316' },
+            { id: 'show-standards', text: '📚 Show Standards', color: '#0ea5e9' },
+            { id: 'extract-all-data', text: '🗂️ Extract All Data', color: '#8b5cf6' },
+            { id: 'random-answer', text: '🎲 Random Answer', color: '#ec4899' },
+            { id: 'skip-to-next', text: '⏭️ Skip to Next', color: '#6b7280' },
+            { id: 'skip-to-prev', text: '⏮️ Skip to Previous', color: '#6b7280' },
+            { id: 'flag-question', text: '🚩 Flag Question', color: '#f43f5e' },
+            { id: 'show-difficulty', text: '⚖️ Show Difficulty', color: '#a855f7' }
         ];
         
-        buttons.forEach(id => {
+        buttons.forEach(btn => {
             const button = document.createElement('button');
             button.className = 'action-button';
-            button.style.fontWeight = 'bold';
-            button.id = id;
-            button.textContent = id.split('-').map(word =>
-                word.charAt(0).toUpperCase() + word.slice(1)
-            ).join(' ');
+            button.id = btn.id;
+            button.textContent = btn.text;
+            button.style.background = btn.color;
             cheatsContent.appendChild(button);
         });
 
@@ -344,13 +352,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         aiContent.appendChild(inputContainer);
         aiContent.appendChild(botAnswer);
 
-        // Info tab
-        const infoContent = createTabContent('<i class="fa-solid fa-info-circle"></i> info');
-        const infoDisplay = document.createElement('div');
-        infoDisplay.id = 'info-display';
-        infoDisplay.innerHTML = '<div style="color: #6b7280;">Question info will appear here...</div>';
-        infoContent.appendChild(infoDisplay);
-
         // Debug tab
         const debugContent = createTabContent('<i class="fa-solid fa-bug"></i> debug');
         debugContent.setAttribute('data-content', 'debug');
@@ -364,7 +365,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         menuContainer.appendChild(cheatsContent);
         menuContainer.appendChild(responseContent);
         menuContainer.appendChild(aiContent);
-        menuContainer.appendChild(infoContent);
         menuContainer.appendChild(debugContent);
 
         menu.appendChild(menuContainer);
@@ -408,19 +408,16 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
     // ==================== ENHANCED MATCHING EXTRACTION ====================
     
     function getMatchingLabelsFromDOM() {
-        // Try to extract actual text from DOM elements
         const leftItems = [];
         const rightItems = [];
         
-        // Look for stimulus items in the DOM
-        const stimulusElements = document.querySelectorAll('.lrn_stimulus_item, .lrn-stimulus-item');
+        const stimulusElements = document.querySelectorAll('.lrn_stimulus_item, .lrn-stimulus-item, [data-lrn-component="stimulus"]');
         stimulusElements.forEach(el => {
             const text = stripHTML(el.innerHTML);
             if (text) leftItems.push(text);
         });
         
-        // Look for response items
-        const responseElements = document.querySelectorAll('.lrn_response_item, .lrn-response-item, [draggable="true"]');
+        const responseElements = document.querySelectorAll('.lrn_response_item, .lrn-response-item, [draggable="true"], .lrn_possibleResponse');
         responseElements.forEach(el => {
             const text = stripHTML(el.innerHTML);
             if (text) rightItems.push(text);
@@ -435,18 +432,15 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         let matches = [];
         const domData = getMatchingLabelsFromDOM();
         
-        // Create lookup maps
         const leftMap = new Map();
         const rightMap = new Map();
         
-        // Map stimulus list (left column)
         if (question.stimulus_list) {
             question.stimulus_list.forEach(item => {
                 leftMap.set(item.value, stripHTML(item.label || item.value));
             });
         }
         
-        // Map possible responses (right column)
         if (question.possible_responses) {
             question.possible_responses.forEach((item, idx) => {
                 const value = typeof item === 'object' ? item.value : item;
@@ -455,18 +449,14 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             });
         }
         
-        // Process each match
         validResponse.forEach((match, idx) => {
             const leftValue = match[0];
             const rightValue = match[1];
             
-            // Try to get text from maps
             let leftText = leftMap.get(leftValue) || leftValue;
             let rightText = rightMap.get(rightValue) || rightValue;
             
-            // If still showing codes, try DOM extraction
             if (domData.leftItems.length > 0 && domData.rightItems.length > 0) {
-                // Try to match by index or content
                 const leftIdx = question.stimulus_list?.findIndex(item => item.value === leftValue);
                 const rightIdx = question.possible_responses?.findIndex(item => 
                     (typeof item === 'object' ? item.value : item) === rightValue
@@ -480,7 +470,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 }
             }
             
-            // Format the match with labels if still showing codes
             const leftLabel = leftText === leftValue ? `[${leftValue}]` : '';
             const rightLabel = rightText === rightValue ? `[${rightValue}]` : '';
             
@@ -515,7 +504,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             
             addDebugLog('info', `Question type: ${questionType}`, { question });
 
-            // MCQ and ChoiceMatrix
             if (questionType === "mcq" || questionType === "choicematrix") {
                 const validResponse = question.validation.valid_response.value;
                 let answerText = [];
@@ -545,7 +533,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 };
             }
             
-            // Association (Matching) - ENHANCED
             else if (questionType === "association") {
                 const validResponse = question.validation.valid_response.value;
                 const matches = formatMatchingAnswer(question, validResponse);
@@ -559,7 +546,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 };
             }
             
-            // Cloze (Fill-in-blank / Dropdown)
             else if (questionType === "clozetext" || questionType === "clozedropdown") {
                 const validResponse = question.validation.valid_response.value;
                 const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
@@ -573,7 +559,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 };
             }
             
-            // Order list
             else if (questionType === "orderlist") {
                 const validResponse = question.validation.valid_response.value;
                 addDebugLog('success', 'Order list answer extracted', validResponse);
@@ -585,7 +570,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 };
             }
             
-            // Generic fallback
             else {
                 const validResponse = question.validation.valid_response.value;
                 addDebugLog('warning', 'Using generic fallback for question type', { questionType, validResponse });
@@ -626,6 +610,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 });
                 
                 if (!filled) addDebugLog('warning', 'No matching radio button found');
+                alert("Answer auto-filled!");
                 
             } else if (question.type === "choicematrix") {
                 const checkboxes = document.querySelectorAll('input[type="checkbox"]');
@@ -641,6 +626,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 });
                 
                 addDebugLog('success', `Checkboxes auto-filled: ${filledCount}`);
+                alert("Answer auto-filled!");
                 
             } else if (question.type === "association") {
                 addDebugLog('warning', 'Auto-fill for matching questions not fully supported yet');
@@ -655,6 +641,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                         addDebugLog('success', `Dropdown ${index} filled`, { answer });
                     }
                 });
+                alert("Answer auto-filled!");
                 
             } else {
                 addDebugLog('warning', `Auto-fill not supported for type: ${question.type}`);
@@ -662,7 +649,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
                 return;
             }
             
-            alert("Answer auto-filled!");
         } catch (error) {
             addDebugLog('error', 'Auto-fill error: ' + error.message, error);
             alert("Error auto-filling: " + error.message);
@@ -757,7 +743,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
     }
 
     function renderFormattedText(text, container) {
-        // Simple markdown-like rendering with KaTeX support
         text = text
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.+?)\*/g, '<em>$1</em>')
@@ -849,7 +834,9 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         });
     });
 
-    // Reveal answer - ENHANCED FOR MATCHING
+    // ==================== CHEAT BUTTON HANDLERS ====================
+
+    // Reveal answer
     document.getElementById('reveal-answer').addEventListener('click', () => {
         addDebugLog('info', 'Reveal answer clicked');
         const result = getAnswerFromQuestion();
@@ -865,6 +852,88 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             const answerElement = document.querySelector("#answers-display");
             answerElement.innerHTML = `<strong>Answer (${result.type}):</strong><br><br>${result.answer}`;
             switchToTab('response');
+        }
+    });
+
+    // Auto-fill
+    document.getElementById('auto-fill-answer').addEventListener('click', autoFillAnswer);
+
+    // Highlight correct - FIXED
+    document.getElementById('highlight-correct').addEventListener('click', () => {
+        addDebugLog('info', 'Highlight correct clicked');
+        try {
+            const currentItem = window.LearnosityAssess.getCurrentItem();
+            const question = currentItem.questions[0];
+            
+            if (question.type !== "mcq" && question.type !== "choicematrix") {
+                alert("Highlighting only works for multiple choice questions");
+                return;
+            }
+            
+            const validResponse = question.validation.valid_response.value;
+            const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+            
+            const allInputs = document.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+            let highlightedCount = 0;
+            
+            allInputs.forEach(input => {
+                const isCorrect = correctValues.some(val => {
+                    return input.value === val || input.value === (typeof val === 'object' ? val.value : val);
+                });
+                
+                if (isCorrect) {
+                    let container = input.closest('.lrn_option, .lrn-option, .lrn_response_container, label, div[class*="option"]');
+                    if (!container) container = input.parentElement;
+                    
+                    if (container) {
+                        container.style.cssText += `
+                            background: #dcfce7 !important;
+                            border: 3px solid #10b981 !important;
+                            border-radius: 0.5rem !important;
+                            padding: 0.75rem !important;
+                            margin: 0.25rem 0 !important;
+                            box-shadow: 0 0 10px rgba(16, 185, 129, 0.3) !important;
+                        `;
+                        highlightedCount++;
+                    }
+                }
+            });
+            
+            if (highlightedCount > 0) {
+                addDebugLog('success', `Highlighted ${highlightedCount} correct answer(s)`);
+                alert(`Correct answer(s) highlighted in green! (${highlightedCount} found)`);
+            } else {
+                addDebugLog('warning', 'No answers highlighted - trying alternative method');
+                
+                const correctOption = question.options.find(opt => correctValues.includes(opt.value));
+                if (correctOption) {
+                    const optionText = stripHTML(correctOption.label);
+                    const allLabels = document.querySelectorAll('label, .lrn_option, .lrn-option, [class*="option"]');
+                    
+                    allLabels.forEach(label => {
+                        if (label.textContent.includes(optionText)) {
+                            label.style.cssText += `
+                                background: #dcfce7 !important;
+                                border: 3px solid #10b981 !important;
+                                border-radius: 0.5rem !important;
+                                padding: 0.75rem !important;
+                                box-shadow: 0 0 10px rgba(16, 185, 129, 0.3) !important;
+                            `;
+                            highlightedCount++;
+                        }
+                    });
+                }
+                
+                if (highlightedCount > 0) {
+                    alert(`Highlighted by text matching! (${highlightedCount} found)`);
+                } else {
+                    alert("Could not find elements to highlight. Check the Response tab for the answer.");
+                }
+            }
+            
+        } catch (error) {
+            addDebugLog('error', 'Highlight error', error);
+            alert("Error: " + error.message);
         }
     });
 
@@ -901,9 +970,6 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         }
     });
 
-    // Auto-fill
-    document.getElementById('auto-fill-answer').addEventListener('click', autoFillAnswer);
-
     // Copy question
     document.getElementById('copy-question').addEventListener('click', () => {
         addDebugLog('info', 'Copy question clicked');
@@ -916,38 +982,36 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         }
     });
 
-    // Highlight correct answer (MCQ only)
-    document.getElementById('highlight-correct').addEventListener('click', () => {
-        addDebugLog('info', 'Highlight correct clicked');
+    // Copy answer only
+    document.getElementById('copy-answer').addEventListener('click', () => {
+        addDebugLog('info', 'Copy answer clicked');
+        const result = getAnswerFromQuestion();
+        if (result.success) {
+            const answerText = result.isMatching 
+                ? result.matches.map(m => `${m.left} → ${m.right}`).join('\n')
+                : result.answer;
+            
+            navigator.clipboard.writeText(answerText).then(() => {
+                alert("Answer copied to clipboard!");
+                addDebugLog('success', 'Answer copied');
+            });
+        } else {
+            alert("Error: " + result.message);
+        }
+    });
+
+    // Explanation
+    document.getElementById('explanation').addEventListener('click', () => {
+        addDebugLog('info', 'Explanation clicked');
         try {
             const currentItem = window.LearnosityAssess.getCurrentItem();
             const question = currentItem.questions[0];
-            
-            if (question.type !== "mcq" && question.type !== "choicematrix") {
-                alert("Highlighting only works for multiple choice questions");
-                return;
-            }
-            
-            const validResponse = question.validation.valid_response.value;
-            const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
-            
-            // Find and highlight correct options
-            const labels = document.querySelectorAll('.lrn_option, .lrn-option, label');
-            labels.forEach(label => {
-                const input = label.querySelector('input');
-                if (input && correctValues.includes(input.value)) {
-                    label.style.background = '#dcfce7';
-                    label.style.border = '2px solid #10b981';
-                    label.style.borderRadius = '0.5rem';
-                    label.style.padding = '0.5rem';
-                }
-            });
-            
-            addDebugLog('success', 'Correct answers highlighted');
-            alert("Correct answer(s) highlighted in green!");
+            const explanation = question.metadata?.le_incorrect_feedbacks || 
+                              question.metadata?.sample_answer ||
+                              "No explanation available";
+            showResponse(stripHTML(explanation));
         } catch (error) {
-            addDebugLog('error', 'Highlight error', error);
-            alert("Error: " + error.message);
+            showResponse("Error: " + error.message);
         }
     });
 
@@ -960,13 +1024,16 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             
             const hints = [];
             if (question.metadata?.distractor_rationale) {
-                hints.push("Distractor Info: " + question.metadata.distractor_rationale);
+                hints.push("📌 Distractor Info:\n" + stripHTML(question.metadata.distractor_rationale));
             }
             if (question.metadata?.sample_answer) {
-                hints.push("Sample Answer: " + stripHTML(question.metadata.sample_answer));
+                hints.push("💡 Sample Answer:\n" + stripHTML(question.metadata.sample_answer));
             }
             if (question.metadata?.acknowledgements) {
-                hints.push("Source: " + question.metadata.acknowledgements);
+                hints.push("📚 Source:\n" + question.metadata.acknowledgements);
+            }
+            if (question.instructor_stimulus) {
+                hints.push("👨‍🏫 Instructor Notes:\n" + stripHTML(question.instructor_stimulus));
             }
             
             const hintText = hints.length > 0 ? hints.join("\n\n") : "No hints available for this question";
@@ -977,47 +1044,168 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         }
     });
 
-    // Question metadata - NEW
-    document.getElementById('question-metadata').addEventListener('click', () => {
-        addDebugLog('info', 'Question metadata clicked');
+    // Question info
+    document.getElementById('question-info').addEventListener('click', () => {
+        addDebugLog('info', 'Question info clicked');
         try {
             const currentItem = window.LearnosityAssess.getCurrentItem();
             const question = currentItem.questions[0];
             const metadata = question.metadata || {};
             
-            const infoDisplay = document.getElementById('info-display');
-            let html = '<div style="font-family: monospace; font-size: 0.85rem;">';
+            const info = `📋 Question Information:
+
+Type: ${question.type}
+Reference: ${question.reference || 'N/A'}
+Points: ${metadata.score_percentage || 'N/A'}
+Difficulty: ${metadata.difficulty || 'N/A'}
+Standard: ${metadata.le_standard_code || 'N/A'}`;
             
-            const fields = [
-                { label: 'Question Type', value: question.type },
-                { label: 'Reference', value: question.reference },
-                { label: 'Points', value: metadata.score_percentage },
-                { label: 'Difficulty', value: metadata.difficulty },
-                { label: 'Skills', value: metadata.skills?.join(', ') },
-                { label: 'Standard', value: metadata.le_standard_code },
-                { label: 'DOK Level', value: metadata.depth_of_knowledge },
-                { label: 'Blooms Taxonomy', value: metadata.blooms_taxonomy },
-                { label: 'Author', value: metadata.author },
-                { label: 'Status', value: metadata.status }
-            ];
+            showResponse(info);
+        } catch (error) {
+            showResponse("Error: " + error.message);
+        }
+    });
+
+    // Question metadata
+    document.getElementById('question-metadata').addEventListener('click', () => {
+        addDebugLog('info', 'Question metadata clicked');
+        try {
+            const currentItem = window.LearnosityAssess.getCurrentItem();
+            const question = currentItem.questions[0];
             
-            fields.forEach(field => {
-                if (field.value) {
-                    html += `<div style="margin-bottom: 0.75rem; padding: 0.5rem; background: #f9fafb; border-radius: 0.375rem;">
-                        <div style="color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem;">${field.label}</div>
-                        <div style="color: #111827; font-weight: bold;">${field.value}</div>
-                    </div>`;
+            showResponse(JSON.stringify(question, null, 2));
+        } catch (error) {
+            showResponse("Error: " + error.message);
+        }
+    });
+
+    // Remove wrong answers
+    document.getElementById('remove-wrong').addEventListener('click', () => {
+        addDebugLog('info', 'Remove wrong answers clicked');
+        try {
+            const currentItem = window.LearnosityAssess.getCurrentItem();
+            const question = currentItem.questions[0];
+            
+            if (question.type !== "mcq" && question.type !== "choicematrix") {
+                alert("This only works for multiple choice questions");
+                return;
+            }
+            
+            const validResponse = question.validation.valid_response.value;
+            const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+            
+            const allInputs = document.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+            let removedCount = 0;
+            
+            allInputs.forEach(input => {
+                const isCorrect = correctValues.some(val => {
+                    return input.value === val || input.value === (typeof val === 'object' ? val.value : val);
+                });
+                
+                if (!isCorrect) {
+                    let container = input.closest('.lrn_option, .lrn-option, label, div[class*="option"]');
+                    if (!container) container = input.parentElement;
+                    
+                    if (container) {
+                        container.style.cssText += 'opacity: 0.2 !important; pointer-events: none !important;';
+                        removedCount++;
+                    }
                 }
             });
             
-            html += '</div>';
-            infoDisplay.innerHTML = html;
-            switchToTab('info');
-            addDebugLog('success', 'Metadata displayed');
+            addDebugLog('success', `Removed ${removedCount} wrong answer(s)`);
+            alert(`Faded out ${removedCount} wrong answer(s)!`);
         } catch (error) {
-            addDebugLog('error', 'Metadata error', error);
-            document.getElementById('info-display').textContent = "Error: " + error.message;
-            switchToTab('info');
+            addDebugLog('error', 'Remove wrong error', error);
+            alert("Error: " + error.message);
+        }
+    });
+
+    // Show scoring info
+    document.getElementById('show-scoring').addEventListener('click', () => {
+        addDebugLog('info', 'Show scoring clicked');
+        try {
+            const currentItem = window.LearnosityAssess.getCurrentItem();
+            const question = currentItem.questions[0];
+            const metadata = question.metadata || {};
+            
+            const scoring = `🎓 Scoring Information:
+
+Points Available: ${metadata.score_percentage || 'N/A'}
+Partial Credit: ${question.validation?.partial_scoring ? 'Yes' : 'No'}
+Penalty: ${metadata.penalty || 'None'}
+Scoring Type: ${question.validation?.scoring_type || 'Standard'}`;
+            
+            showResponse(scoring);
+        } catch (error) {
+            showResponse("Error: " + error.message);
+        }
+    });
+
+    // Freeze timer
+    document.getElementById('freeze-timer').addEventListener('click', () => {
+        addDebugLog('info', 'Freeze timer clicked');
+        try {
+            const timerElements = document.querySelectorAll('[class*="timer"], [class*="countdown"], [id*="timer"]');
+            timerElements.forEach(el => {
+                el.style.cssText += 'animation-play-state: paused !important;';
+            });
+            
+            const highestId = window.setTimeout(() => {}, 0);
+            for (let i = 0; i < highestId; i++) {
+                window.clearInterval(i);
+            }
+            
+            addDebugLog('success', 'Timer freeze attempted');
+            alert("Timer freeze attempted! (May not work on all platforms)");
+        } catch (error) {
+            addDebugLog('error', 'Timer freeze error', error);
+            alert("Error: " + error.message);
+        }
+    });
+
+    // Show standards
+    document.getElementById('show-standards').addEventListener('click', () => {
+        addDebugLog('info', 'Show standards clicked');
+        try {
+            const currentItem = window.LearnosityAssess.getCurrentItem();
+            const question = currentItem.questions[0];
+            const metadata = question.metadata || {};
+            
+            const standards = `📚 Educational Standards:
+
+Standard Code: ${metadata.le_standard_code || 'N/A'}
+Skills: ${metadata.skills?.join(', ') || 'N/A'}
+DOK Level: ${metadata.depth_of_knowledge || 'N/A'}
+Blooms Taxonomy: ${metadata.blooms_taxonomy || 'N/A'}
+Subject: ${metadata.subject || 'N/A'}
+Grade: ${metadata.grade || 'N/A'}`;
+            
+            showResponse(standards);
+        } catch (error) {
+            showResponse("Error: " + error.message);
+        }
+    });
+
+    // Extract all data
+    document.getElementById('extract-all-data').addEventListener('click', () => {
+        addDebugLog('info', 'Extract all data clicked');
+        try {
+            const currentItem = window.LearnosityAssess.getCurrentItem();
+            const allData = {
+                item: currentItem,
+                questions: currentItem.questions,
+                session: window.LearnosityAssess.getSessionId?.(),
+                state: window.LearnosityAssess.getState?.()
+            };
+            
+            const dataStr = JSON.stringify(allData, null, 2);
+            navigator.clipboard.writeText(dataStr).then(() => {
+                showResponse("All data extracted and copied to clipboard!\n\nPreview:\n" + dataStr.substring(0, 500) + "...");
+            });
+        } catch (error) {
+            addDebugLog('error', 'Extract data error', error);
+            showResponse("Error: " + error.message);
         }
     });
 
@@ -1044,6 +1232,57 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
             alert("Next button not found");
         }
     });
+
+    // Skip to previous
+    document.getElementById('skip-to-prev').addEventListener('click', () => {
+        const prevButton = document.querySelector("#prevPage > button, .lrn-prev-button, button[data-action='prev']");
+        if (prevButton) {
+            prevButton.click();
+            addDebugLog('info', 'Skipped to previous');
+        } else {
+            alert("Previous button not found");
+        }
+    });
+
+    // Flag question
+    document.getElementById('flag-question').addEventListener('click', () => {
+        addDebugLog('info', 'Flag question clicked');
+        try {
+            const flagButton = document.querySelector('[class*="flag"], button[title*="flag" i], button[aria-label*="flag" i]');
+            if (flagButton) {
+                flagButton.click();
+                alert("Question flagged!");
+            } else {
+                alert("Flag button not found");
+            }
+        } catch (error) {
+            alert("Error: " + error.message);
+        }
+    });
+
+    // Show difficulty
+    document.getElementById('show-difficulty').addEventListener('click', () => {
+        addDebugLog('info', 'Show difficulty clicked');
+        try {
+            const currentItem = window.LearnosityAssess.getCurrentItem();
+            const question = currentItem.questions[0];
+            const metadata = question.metadata || {};
+            
+            const difficulty = `⚖️ Question Difficulty:
+
+Difficulty Level: ${metadata.difficulty || 'N/A'}
+DOK (Depth of Knowledge): ${metadata.depth_of_knowledge || 'N/A'}
+Blooms Level: ${metadata.blooms_taxonomy || 'N/A'}
+Estimated Time: ${metadata.estimated_time || 'N/A'}
+Average Score: ${metadata.average_score || 'N/A'}`;
+            
+            showResponse(difficulty);
+        } catch (error) {
+            showResponse("Error: " + error.message);
+        }
+    });
+
+    // ==================== AI & CHAT ====================
 
     // AI solve
     document.getElementById('botAnswer').addEventListener('click', solveWithAI);
@@ -1104,7 +1343,7 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         if (e.key === 'Enter') sendMessage();
     });
 
-    // Clear logs button
+    // Clear logs
     document.getElementById('clear-logs').addEventListener('click', () => {
         debugLogs.length = 0;
         updateDebugDisplay();
@@ -1129,11 +1368,11 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
         }
     });
 
-    // Initialize debug display
+    // Initialize
     updateDebugDisplay();
     addDebugLog('success', 'Script initialized successfully');
 
-    // Load MathJax for LaTeX rendering
+    // Load MathJax
     const mathJaxConfig = document.createElement('script');
     mathJaxConfig.type = 'text/javascript';
     mathJaxConfig.text = `
