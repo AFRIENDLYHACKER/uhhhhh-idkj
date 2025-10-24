@@ -879,226 +879,233 @@ async function autoCompleteAssignment(realistic = false) {
     try {
         completeButton.disabled = true;
         
-        // Simple infinite loop until no more questions
         for (let i = 0; i < 200; i++) {
-            completeButton.textContent = `⏳ Loading question ${i + 1}...`;
+            completeButton.textContent = `⏳ Processing Q${i + 1}...`;
             
-            // Wait for page to load completely
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            
-            // Try to get current question
+            // Get current question data
             let currentItem, question, questionType, validResponse;
             try {
                 currentItem = window.LearnosityAssess.getCurrentItem();
                 question = currentItem.questions[0];
                 questionType = question.type;
                 validResponse = question.validation.valid_response.value;
-                
-                console.log('Found question:', questionType, validResponse);
             } catch (e) {
-                console.log('No more questions found');
-                alert(`Finished! Answered ${questionsCompleted} questions`);
+                console.log('No more questions');
                 break;
             }
             
-            if (!validResponse) {
-                alert(`No answer data for question ${i + 1}`);
-                break;
-            }
+            if (!validResponse) break;
             
-            // Reading time
-            const readingTime = 2000 + Math.floor(Math.random() * 3000);
-            completeButton.textContent = `📖 Reading Q${i + 1}...`;
+            // Calculate reading time
+            const questionText = stripHTML(question.stimulus || '');
+            const readingTime = calculateReadingTime(questionText);
+            
+            completeButton.textContent = `📖 Reading (${(readingTime/1000).toFixed(1)}s)...`;
             await new Promise(resolve => setTimeout(resolve, readingTime));
+            
+            // Simulate mouse movement if realistic
+            if (realistic) {
+                completeButton.textContent = `🖱️ Thinking...`;
+                await simulateMouseMovement();
+                await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1500));
+            }
             
             // Decide if answering wrong
             const shouldAnswerWrong = realistic && 
                                      questionsWrong.length < targetWrongCount && 
-                                     Math.random() < 0.15;
+                                     Math.random() < 0.15 &&
+                                     (questionType === "mcq" || questionType === "choicematrix");
             
-            let answered = false;
+            // ========== USE AUTO-FILL LOGIC ==========
             
-            // ========== MCQ ==========
             if (questionType === "mcq") {
-                // Wait a bit more for radios to load
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                const radios = document.querySelectorAll('input[type="radio"]');
-                console.log('Found radios:', radios.length);
-                
-                if (radios.length === 0) {
-                    alert(`No radio buttons found on Q${i + 1}. Stopping.`);
-                    break;
-                }
-                
                 const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+                const radios = document.querySelectorAll('input[type="radio"]');
                 
-                // Find correct radio
                 let targetRadio = null;
                 
                 if (shouldAnswerWrong) {
-                    // Pick wrong answer
-                    const wrongRadios = Array.from(radios).filter(r => {
+                    // Find wrong radio
+                    const wrongRadios = Array.from(radios).filter(radio => {
                         return !correctValues.some(val => {
-                            const v = typeof val === 'object' ? val.value : val;
-                            return r.value == v;
+                            const valToCheck = typeof val === 'object' ? val.value : val;
+                            return radio.value === valToCheck || radio.value === String(valToCheck);
                         });
                     });
                     if (wrongRadios.length > 0) {
                         targetRadio = wrongRadios[Math.floor(Math.random() * wrongRadios.length)];
                         questionsWrong.push(i);
-                        console.log('Selecting WRONG:', targetRadio.value);
                     }
                 }
                 
                 if (!targetRadio) {
-                    // Pick correct answer
-                    for (const radio of radios) {
-                        for (const val of correctValues) {
-                            const v = typeof val === 'object' ? val.value : val;
-                            if (radio.value == v || radio.value == String(v)) {
-                                targetRadio = radio;
-                                console.log('Selecting CORRECT:', radio.value);
-                                break;
-                            }
+                    // Find correct radio (same logic as auto-fill)
+                    radios.forEach(radio => {
+                        const isCorrect = correctValues.some(val => 
+                            radio.value === val || radio.value === (typeof val === 'object' ? val.value : val)
+                        );
+                        if (isCorrect && !targetRadio) {
+                            targetRadio = radio;
                         }
-                        if (targetRadio) break;
-                    }
+                    });
                 }
                 
                 if (targetRadio) {
                     const clickDelay = 5000 + Math.floor(Math.random() * 2000);
-                    completeButton.textContent = `🖱️ Clicking (${(clickDelay/1000).toFixed(1)}s)...`;
+                    completeButton.textContent = `🖱️ Selecting (${(clickDelay/1000).toFixed(1)}s)...`;
                     await new Promise(resolve => setTimeout(resolve, clickDelay));
                     
                     targetRadio.click();
-                    console.log('Clicked radio, checked:', targetRadio.checked);
-                    
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    answered = true;
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 } else {
-                    alert(`Could not find radio to click on Q${i + 1}`);
-                    break;
-                }
-            }
-            
-            // ========== CHOICE MATRIX ==========
-            else if (questionType === "choicematrix") {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-                console.log('Found checkboxes:', checkboxes.length);
-                
-                if (checkboxes.length === 0) {
-                    alert(`No checkboxes found on Q${i + 1}`);
+                    alert(`Could not find radio button for Q${i + 1}`);
                     break;
                 }
                 
+            } else if (questionType === "choicematrix") {
                 const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+                const checkboxes = document.querySelectorAll('input[type="checkbox"]');
                 
-                let clickCount = 0;
-                for (const val of correctValues) {
-                    for (const checkbox of checkboxes) {
-                        const v = typeof val === 'object' ? val.value : val;
-                        if (checkbox.value == v || checkbox.value == String(v)) {
-                            if (!checkbox.checked) {
-                                const clickDelay = 5000 + Math.floor(Math.random() * 2000);
-                                completeButton.textContent = `🖱️ Clicking ${clickCount + 1} (${(clickDelay/1000).toFixed(1)}s)...`;
-                                await new Promise(resolve => setTimeout(resolve, clickDelay));
-                                
-                                checkbox.click();
-                                console.log('Clicked checkbox:', checkbox.value);
-                                await new Promise(resolve => setTimeout(resolve, 500));
-                                clickCount++;
+                let checkboxesToClick = [];
+                
+                if (shouldAnswerWrong && correctValues.length > 1) {
+                    const strategy = Math.random() < 0.5 ? 'omit' : 'add';
+                    
+                    if (strategy === 'omit') {
+                        // Skip one correct answer
+                        const skipIndex = Math.floor(Math.random() * correctValues.length);
+                        correctValues.forEach((val, idx) => {
+                            if (idx !== skipIndex) {
+                                checkboxes.forEach(checkbox => {
+                                    const checkValue = typeof val === 'object' ? val.value : val;
+                                    if (checkbox.value === checkValue && !checkbox.checked) {
+                                        checkboxesToClick.push(checkbox);
+                                    }
+                                });
                             }
-                            break;
+                        });
+                    } else {
+                        // Add all correct + one wrong
+                        correctValues.forEach(val => {
+                            checkboxes.forEach(checkbox => {
+                                const checkValue = typeof val === 'object' ? val.value : val;
+                                if (checkbox.value === checkValue && !checkbox.checked) {
+                                    checkboxesToClick.push(checkbox);
+                                }
+                            });
+                        });
+                        
+                        const wrongBoxes = Array.from(checkboxes).filter(cb => 
+                            !correctValues.some(val => cb.value === (typeof val === 'object' ? val.value : val))
+                        );
+                        if (wrongBoxes.length > 0) {
+                            checkboxesToClick.push(wrongBoxes[0]);
                         }
                     }
-                }
-                
-                if (clickCount > 0) {
-                    answered = true;
+                    questionsWrong.push(i);
                 } else {
-                    alert(`No checkboxes clicked on Q${i + 1}`);
-                    break;
+                    // All correct (same as auto-fill)
+                    correctValues.forEach(val => {
+                        checkboxes.forEach(checkbox => {
+                            const checkValue = typeof val === 'object' ? val.value : val;
+                            if (checkbox.value === checkValue && !checkbox.checked) {
+                                checkboxesToClick.push(checkbox);
+                            }
+                        });
+                    });
                 }
-            }
-            
-            // ========== DROPDOWN ==========
-            else if (questionType === "clozedropdown") {
-                await new Promise(resolve => setTimeout(resolve, 1000));
                 
+                // Click each checkbox with delay
+                for (let idx = 0; idx < checkboxesToClick.length; idx++) {
+                    const clickDelay = 5000 + Math.floor(Math.random() * 2000);
+                    completeButton.textContent = `🖱️ Selecting ${idx + 1}/${checkboxesToClick.length} (${(clickDelay/1000).toFixed(1)}s)...`;
+                    await new Promise(resolve => setTimeout(resolve, clickDelay));
+                    
+                    checkboxesToClick[idx].click();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+            } else if (questionType === "clozedropdown") {
+                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
                 const selects = document.querySelectorAll('select');
-                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
                 
-                for (let idx = 0; idx < answers.length; idx++) {
-                    if (selects[idx]) {
+                for (let index = 0; index < answers.length; index++) {
+                    if (selects[index]) {
                         const clickDelay = 5000 + Math.floor(Math.random() * 2000);
-                        completeButton.textContent = `🖱️ Dropdown ${idx + 1}...`;
+                        completeButton.textContent = `🖱️ Dropdown ${index + 1} (${(clickDelay/1000).toFixed(1)}s)...`;
                         await new Promise(resolve => setTimeout(resolve, clickDelay));
                         
-                        selects[idx].value = answers[idx];
-                        selects[idx].dispatchEvent(new Event('change', { bubbles: true }));
+                        selects[index].value = answers[index];
+                        selects[index].dispatchEvent(new Event('change', { bubbles: true }));
                         await new Promise(resolve => setTimeout(resolve, 500));
                     }
                 }
-                answered = true;
-            }
-            
-            // ========== TEXT INPUT ==========
-            else if (questionType === "clozetext") {
-                await new Promise(resolve => setTimeout(resolve, 1000));
                 
+            } else if (questionType === "clozetext") {
+                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
                 const inputs = document.querySelectorAll('input[type="text"]');
-                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
                 
-                for (let idx = 0; idx < answers.length; idx++) {
-                    if (inputs[idx]) {
+                for (let index = 0; index < answers.length; index++) {
+                    if (inputs[index]) {
                         const clickDelay = 5000 + Math.floor(Math.random() * 2000);
-                        completeButton.textContent = `⌨️ Typing ${idx + 1}...`;
+                        completeButton.textContent = `⌨️ Typing ${index + 1} (${(clickDelay/1000).toFixed(1)}s)...`;
                         await new Promise(resolve => setTimeout(resolve, clickDelay));
                         
-                        inputs[idx].value = answers[idx];
-                        inputs[idx].dispatchEvent(new Event('input', { bubbles: true }));
+                        inputs[index].value = answers[index];
+                        inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
                         await new Promise(resolve => setTimeout(resolve, 500));
                     }
                 }
-                answered = true;
-            }
-            
-            // ========== OTHER TYPES ==========
-            else {
-                alert(`Question type "${questionType}" not supported yet. Stopping at Q${i + 1}.`);
-                break;
-            }
-            
-            if (!answered) {
-                alert(`Failed to answer Q${i + 1}`);
+                
+            } else if (questionType === "formulaV2" || questionType === "chemistry") {
+                const input = document.querySelector('input[data-lrn-component="formula"], input[type="text"]');
+                if (input && validResponse) {
+                    const clickDelay = 5000 + Math.floor(Math.random() * 2000);
+                    completeButton.textContent = `⌨️ Formula (${(clickDelay/1000).toFixed(1)}s)...`;
+                    await new Promise(resolve => setTimeout(resolve, clickDelay));
+                    
+                    input.value = validResponse;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+            } else if (questionType === "plaintext" || questionType === "shorttext" || questionType === "longtext") {
+                const textarea = document.querySelector('textarea');
+                if (textarea && validResponse) {
+                    const clickDelay = 5000 + Math.floor(Math.random() * 2000);
+                    completeButton.textContent = `⌨️ Text (${(clickDelay/1000).toFixed(1)}s)...`;
+                    await new Promise(resolve => setTimeout(resolve, clickDelay));
+                    
+                    textarea.value = validResponse;
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            } else {
+                alert(`Question type "${questionType}" not supported. Stopping.`);
                 break;
             }
             
             questionsCompleted++;
-            console.log(`✓ Question ${questionsCompleted} answered`);
             
             // Wait before clicking next
             const nextDelay = 5000 + Math.floor(Math.random() * 2000);
-            completeButton.textContent = `⏭️ Next (${(nextDelay/1000).toFixed(1)}s)... [${questionsCompleted} done]`;
+            completeButton.textContent = `⏭️ Next (${(nextDelay/1000).toFixed(1)}s)... [${questionsCompleted} done${realistic ? `, ${questionsWrong.length} wrong` : ''}]`;
             await new Promise(resolve => setTimeout(resolve, nextDelay));
             
             // Click next
             const nextButton = document.querySelector("#lrn_assess_next_btn");
             if (nextButton && !nextButton.disabled) {
-                console.log('Clicking Next button');
                 nextButton.click();
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for next page to load
             } else {
-                console.log('No next button - end of assignment');
+                // No next button = end of assignment
                 break;
             }
         }
         
         // Try to submit
         completeButton.textContent = '📤 Submitting...';
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         let submitted = false;
         
@@ -1117,19 +1124,19 @@ async function autoCompleteAssignment(realistic = false) {
             }
         }
         
-        const accuracy = realistic ? 
+        const accuracy = questionsCompleted > 0 && realistic ? 
             `${questionsCompleted - questionsWrong.length}/${questionsCompleted} correct (${((questionsCompleted - questionsWrong.length) / questionsCompleted * 100).toFixed(1)}%)` :
             `${questionsCompleted}/${questionsCompleted} correct (100%)`;
         
         if (submitted) {
-            alert(`✅ DONE & SUBMITTED!\n\n${accuracy}`);
+            alert(`✅ Complete & Submitted!\n\n${accuracy}\n${realistic && questionsWrong.length > 0 ? `Wrong: Q${questionsWrong.map(q => q + 1).join(', Q')}` : ''}`);
         } else {
-            alert(`✅ DONE!\n\n${accuracy}\n\nPlease submit manually.`);
+            alert(`✅ Complete!\n\n${accuracy}\n\nPlease submit manually.`);
         }
         
     } catch (error) {
         console.error('Error:', error);
-        alert(`Error: ${error.message}\n\nCompleted ${questionsCompleted} questions.`);
+        alert(`Error: ${error.message}\n\nAnswered ${questionsCompleted} questions.`);
     } finally {
         completeButton.disabled = false;
         completeButton.textContent = originalText;
