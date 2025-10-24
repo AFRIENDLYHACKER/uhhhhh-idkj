@@ -1174,7 +1174,7 @@ async function autoCompleteAssignment(realistic = false) {
             await new Promise(resolve => setTimeout(resolve, nextDelay));
             
             // Click next button
-            const nextButton = document.querySelector("#nextPage > button");
+            const nextButton = document.querySelector("#lrn_assess_next_btn");
             if (nextButton && !nextButton.disabled) {
                 nextButton.click();
                 await new Promise(resolve => setTimeout(resolve, 2000)); // Wait longer for page load
@@ -1884,7 +1884,7 @@ Grade: ${metadata.grade || 'N/A'}`;
 
     // Skip to next
     document.getElementById('skip-to-next').addEventListener('click', () => {
-        const nextButton = document.querySelector("#nextPage > button, .lrn-next-button, button[data-action='next']");
+        const nextButton = document.querySelector("#lrn_assess_next_btn");
         if (nextButton) {
             nextButton.click();
             addDebugLog('info', 'Skipped to next');
@@ -2044,7 +2044,7 @@ Average Score: ${metadata.average_score || 'N/A'}`;
         if (e.key === "ArrowLeft" && !e.target.matches('input, textarea')) {
             document.querySelector("#prevPage > button, .lrn-prev-button")?.click();
         } else if (e.key === "ArrowRight" && !e.target.matches('input, textarea')) {
-            document.querySelector("#nextPage > button, .lrn-next-button")?.click();
+            document.querySelector("#lrn_assess_next_btn")?.click();
         } else if (e.key === 'p' && e.altKey) {
             e.preventDefault();
             document.getElementById('reveal-answer').click();
