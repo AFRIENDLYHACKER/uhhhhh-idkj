@@ -867,6 +867,8 @@ function setupAPIInterceptor() {
 }
 // ==================== ENHANCED AUTO-COMPLETE ====================
 
+// ==================== ENHANCED AUTO-COMPLETE ====================
+
 async function autoCompleteAssignment(realistic = false) {
     addDebugLog('info', `Auto-complete assignment started (${realistic ? 'realistic' : 'perfect'} mode)`);
     
@@ -897,7 +899,9 @@ async function autoCompleteAssignment(realistic = false) {
         const targetWrongCount = realistic ? (1 + Math.floor(Math.random() * 2)) : 0; // 1-2 wrong answers
         
         while (questionsCompleted < maxQuestions) {
-            // Check if we're still on a valid question page
+            // ALWAYS get CURRENT question (freshly loaded)
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait for page to fully load
+            
             const currentItem = window.LearnosityAssess?.getCurrentItem();
             if (!currentItem || !currentItem.questions || !currentItem.questions[0]) {
                 addDebugLog('info', 'No more questions found - assignment complete!');
@@ -913,24 +917,26 @@ async function autoCompleteAssignment(realistic = false) {
                 break;
             }
             
+            addDebugLog('info', `Processing question ${questionsCompleted + 1}`, { type: questionType, reference: question.reference });
+            
             // Calculate reading time based on question text
             const questionText = stripHTML(question.stimulus || '');
             const readingTime = calculateReadingTime(questionText);
             
-            completeButton.textContent = `📖 Reading (${(readingTime/1000).toFixed(1)}s)...`;
+            completeButton.textContent = `📖 Reading Q${questionsCompleted + 1} (${(readingTime/1000).toFixed(1)}s)...`;
             await new Promise(resolve => setTimeout(resolve, readingTime));
             
             // Simulate mouse movement
             if (realistic) {
                 completeButton.textContent = `🖱️ Thinking...`;
                 await simulateMouseMovement();
-                await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1500)); // Extra think time
+                await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1500));
             }
             
-            // Decide if this should be a wrong answer (realistic mode only)
+            // Decide if this should be a wrong answer
             const shouldAnswerWrong = realistic && 
                                      questionsWrong.length < targetWrongCount && 
-                                     Math.random() < 0.15 && // 15% chance per question
+                                     Math.random() < 0.15 &&
                                      (questionType === "mcq" || questionType === "choicematrix");
             
             let answered = false;
@@ -941,10 +947,9 @@ async function autoCompleteAssignment(realistic = false) {
                 const radios = document.querySelectorAll('input[type="radio"]');
                 const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
                 
-                addDebugLog('info', 'MCQ - Looking for correct values', { correctValues });
+                addDebugLog('info', 'MCQ - Looking for correct values', { correctValues, foundRadios: radios.length });
                 
                 if (shouldAnswerWrong) {
-                    // Pick a plausible wrong answer
                     const wrongRadios = Array.from(radios).filter(radio => {
                         const isWrong = !correctValues.some(val => {
                             const valToCheck = typeof val === 'object' ? val.value : val;
@@ -955,14 +960,12 @@ async function autoCompleteAssignment(realistic = false) {
                     
                     if (wrongRadios.length > 0) {
                         const wrongChoice = wrongRadios[Math.floor(Math.random() * wrongRadios.length)];
-                        
-                        // Delay before clicking
                         const clickDelay = 5000 + Math.floor(Math.random() * 2000);
                         completeButton.textContent = `🖱️ Selecting (${(clickDelay/1000).toFixed(1)}s)...`;
                         await new Promise(resolve => setTimeout(resolve, clickDelay));
                         
                         wrongChoice.click();
-                        await new Promise(resolve => setTimeout(resolve, 300)); // Wait for DOM update
+                        await new Promise(resolve => setTimeout(resolve, 500));
                         
                         questionsWrong.push(questionsCompleted);
                         addDebugLog('info', `Intentionally answered wrong`, { value: wrongChoice.value });
@@ -971,7 +974,6 @@ async function autoCompleteAssignment(realistic = false) {
                 }
                 
                 if (!answered) {
-                    // Find and click correct answer
                     for (const radio of radios) {
                         const isCorrect = correctValues.some(val => {
                             const valToCheck = typeof val === 'object' ? val.value : val;
@@ -979,13 +981,12 @@ async function autoCompleteAssignment(realistic = false) {
                         });
                         
                         if (isCorrect) {
-                            // Delay before clicking
                             const clickDelay = 5000 + Math.floor(Math.random() * 2000);
                             completeButton.textContent = `🖱️ Selecting (${(clickDelay/1000).toFixed(1)}s)...`;
                             await new Promise(resolve => setTimeout(resolve, clickDelay));
                             
                             radio.click();
-                            await new Promise(resolve => setTimeout(resolve, 300)); // Wait for DOM update
+                            await new Promise(resolve => setTimeout(resolve, 500));
                             
                             addDebugLog('success', 'MCQ answered correctly', { value: radio.value });
                             answered = true;
@@ -998,36 +999,33 @@ async function autoCompleteAssignment(realistic = false) {
                 const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
                 const checkboxes = document.querySelectorAll('input[type="checkbox"]');
                 
-                addDebugLog('info', 'Choicematrix - Looking for correct values', { correctValues });
+                addDebugLog('info', 'Choicematrix - Looking for correct values', { correctValues, foundCheckboxes: checkboxes.length });
                 
                 if (shouldAnswerWrong && correctValues.length > 1) {
-                    // Select all but one correct answer, or add one wrong one
                     const strategy = Math.random() < 0.5 ? 'omit' : 'add';
                     
                     if (strategy === 'omit') {
                         const skipIndex = Math.floor(Math.random() * correctValues.length);
                         
                         for (let idx = 0; idx < correctValues.length; idx++) {
-                            if (idx === skipIndex) continue; // Skip one
+                            if (idx === skipIndex) continue;
                             
                             const val = correctValues[idx];
                             for (const checkbox of checkboxes) {
                                 const checkValue = typeof val === 'object' ? val.value : val;
                                 if ((checkbox.value === checkValue || checkbox.value === String(checkValue)) && !checkbox.checked) {
-                                    // Delay between each click
                                     const clickDelay = 5000 + Math.floor(Math.random() * 2000);
                                     completeButton.textContent = `🖱️ Selecting option ${idx + 1} (${(clickDelay/1000).toFixed(1)}s)...`;
                                     await new Promise(resolve => setTimeout(resolve, clickDelay));
                                     
                                     checkbox.click();
-                                    await new Promise(resolve => setTimeout(resolve, 300));
+                                    await new Promise(resolve => setTimeout(resolve, 500));
                                     answered = true;
                                     break;
                                 }
                             }
                         }
                     } else {
-                        // Add all correct plus one wrong
                         for (let idx = 0; idx < correctValues.length; idx++) {
                             const val = correctValues[idx];
                             for (const checkbox of checkboxes) {
@@ -1038,14 +1036,13 @@ async function autoCompleteAssignment(realistic = false) {
                                     await new Promise(resolve => setTimeout(resolve, clickDelay));
                                     
                                     checkbox.click();
-                                    await new Promise(resolve => setTimeout(resolve, 300));
+                                    await new Promise(resolve => setTimeout(resolve, 500));
                                     answered = true;
                                     break;
                                 }
                             }
                         }
                         
-                        // Add one wrong
                         const wrongBoxes = Array.from(checkboxes).filter(cb => {
                             return !correctValues.some(val => {
                                 const checkValue = typeof val === 'object' ? val.value : val;
@@ -1057,7 +1054,7 @@ async function autoCompleteAssignment(realistic = false) {
                             const clickDelay = 5000 + Math.floor(Math.random() * 2000);
                             await new Promise(resolve => setTimeout(resolve, clickDelay));
                             wrongBoxes[0].click();
-                            await new Promise(resolve => setTimeout(resolve, 300));
+                            await new Promise(resolve => setTimeout(resolve, 500));
                         }
                     }
                     
@@ -1065,19 +1062,17 @@ async function autoCompleteAssignment(realistic = false) {
                     addDebugLog('info', 'Intentionally answered wrong (realistic mode)');
                     
                 } else {
-                    // Answer correctly - select ALL valid responses WITH DELAYS
                     let optionNum = 1;
                     for (const val of correctValues) {
                         for (const checkbox of checkboxes) {
                             const checkValue = typeof val === 'object' ? val.value : val;
                             if ((checkbox.value === checkValue || checkbox.value === String(checkValue)) && !checkbox.checked) {
-                                // Delay between each click (5-7 seconds)
                                 const clickDelay = 5000 + Math.floor(Math.random() * 2000);
                                 completeButton.textContent = `🖱️ Selecting option ${optionNum} (${(clickDelay/1000).toFixed(1)}s)...`;
                                 await new Promise(resolve => setTimeout(resolve, clickDelay));
                                 
                                 checkbox.click();
-                                await new Promise(resolve => setTimeout(resolve, 300)); // Wait for DOM to update
+                                await new Promise(resolve => setTimeout(resolve, 500));
                                 
                                 addDebugLog('success', `Checkbox ${optionNum} checked`, { value: checkbox.value });
                                 answered = true;
@@ -1100,7 +1095,7 @@ async function autoCompleteAssignment(realistic = false) {
                         
                         selects[index].value = answers[index];
                         selects[index].dispatchEvent(new Event('change', { bubbles: true }));
-                        await new Promise(resolve => setTimeout(resolve, 300));
+                        await new Promise(resolve => setTimeout(resolve, 500));
                         
                         addDebugLog('success', `Dropdown ${index} filled`, { answer: answers[index] });
                         answered = true;
@@ -1119,7 +1114,7 @@ async function autoCompleteAssignment(realistic = false) {
                         
                         inputs[index].value = answers[index];
                         inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
-                        await new Promise(resolve => setTimeout(resolve, 300));
+                        await new Promise(resolve => setTimeout(resolve, 500));
                         
                         addDebugLog('success', `Text input ${index} filled`, { answer: answers[index] });
                         answered = true;
@@ -1135,7 +1130,7 @@ async function autoCompleteAssignment(realistic = false) {
                     
                     input.value = validResponse;
                     input.dispatchEvent(new Event('input', { bubbles: true }));
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                    await new Promise(resolve => setTimeout(resolve, 500));
                     answered = true;
                 }
                 
@@ -1148,58 +1143,60 @@ async function autoCompleteAssignment(realistic = false) {
                     
                     textarea.value = validResponse;
                     textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                    await new Promise(resolve => setTimeout(resolve, 500));
                     answered = true;
                 }
             }
             
             if (!answered) {
-                addDebugLog('error', `Could not auto-fill question type: ${questionType}`);
-                alert(`Stopped at question ${questionsCompleted + 1}\nType: ${questionType} (not supported or no elements found)\n\nProgress has been saved.`);
+                addDebugLog('error', `Could not answer question type: ${questionType}`);
+                alert(`Stopped at Q${questionsCompleted + 1}\nType: ${questionType}\n\nProgress saved.`);
                 saveProgress({ questionsCompleted, questionsWrong });
                 break;
             }
             
             questionsCompleted++;
-            addDebugLog('success', `Question ${questionsCompleted} completed`);
+            addDebugLog('success', `✓ Question ${questionsCompleted} answered`);
             
             // Save progress periodically
             if (questionsCompleted % 5 === 0) {
                 saveProgress({ questionsCompleted, questionsWrong });
             }
             
-            // Random delay before clicking next (5-7 seconds)
+            // Wait a bit to make sure answer is registered
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Now try to click Next
             const nextDelay = 5000 + Math.floor(Math.random() * 2000);
-            completeButton.textContent = `⏭️ Next question in ${(nextDelay/1000).toFixed(1)}s... (${questionsCompleted} done${realistic ? `, ${questionsWrong.length} wrong` : ''})`;
+            completeButton.textContent = `⏭️ Next in ${(nextDelay/1000).toFixed(1)}s... (${questionsCompleted} done${realistic ? `, ${questionsWrong.length} wrong` : ''})`;
             await new Promise(resolve => setTimeout(resolve, nextDelay));
             
-            // Click next button
             const nextButton = document.querySelector("#lrn_assess_next_btn");
             if (nextButton && !nextButton.disabled) {
+                addDebugLog('info', 'Clicking Next button');
                 nextButton.click();
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait longer for page load
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for new question to load
             } else {
-                addDebugLog('info', 'Next button not found or disabled - reached end');
+                addDebugLog('info', 'No next button - reached end');
                 break;
             }
         }
         
-        clearProgress(); // Clear progress when complete
+        clearProgress();
         
         const totalQuestions = questionsCompleted - startQuestion;
         const accuracy = realistic ? 
             `${totalQuestions - questionsWrong.length}/${totalQuestions} correct (${((totalQuestions - questionsWrong.length) / totalQuestions * 100).toFixed(1)}%)` :
             `${totalQuestions}/${totalQuestions} correct (100%)`;
         
-        addDebugLog('success', `Auto-complete finished! ${totalQuestions} questions completed`);
+        addDebugLog('success', `✅ Auto-complete finished! ${totalQuestions} questions`);
         
-        // Try to submit the assignment
+        // Try to submit
         completeButton.textContent = '📤 Submitting...';
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         let submitted = false;
         
-        // Method 1: Learnosity API
         try {
             if (window.LearnosityAssess && typeof window.LearnosityAssess.submit === 'function') {
                 window.LearnosityAssess.submit();
@@ -1210,39 +1207,28 @@ async function autoCompleteAssignment(realistic = false) {
             addDebugLog('warning', 'Learnosity API submit failed', e);
         }
         
-        // Method 2: Submit button
         if (!submitted) {
             const submitButton = document.querySelector(
-                'button[data-action="submit"], button[type="submit"], .lrn-submit-button, button.submit-btn, #submit-button'
+                'button[data-action="submit"], button[type="submit"], .lrn-submit-button, #lrn_assess_submit_btn, #submit-button'
             );
             
             if (submitButton) {
                 submitButton.click();
-                addDebugLog('success', 'Submitted via submit button');
-                submitted = true;
-            }
-        }
-        
-        // Method 3: Form submit
-        if (!submitted) {
-            const form = document.querySelector('form');
-            if (form) {
-                form.submit();
-                addDebugLog('success', 'Submitted via form');
+                addDebugLog('success', 'Submitted via button');
                 submitted = true;
             }
         }
         
         if (submitted) {
-            alert(`✅ Assignment Complete & Submitted!\n\n${accuracy}\n${realistic ? `Wrong answers: ${questionsWrong.map(q => q + 1).join(', ')}` : 'Perfect score!'}\n\n✓ Submitted automatically!`);
+            alert(`✅ Complete & Submitted!\n\n${accuracy}\n${realistic ? `Wrong: Q${questionsWrong.map(q => q + 1).join(', Q')}` : 'Perfect!'}`);
         } else {
-            alert(`✅ Assignment Complete!\n\n${accuracy}\n${realistic ? `Wrong answers: ${questionsWrong.map(q => q + 1).join(', ')}` : 'Perfect score!'}\n\n⚠️ Could not auto-submit. Click Submit manually.`);
+            alert(`✅ Complete!\n\n${accuracy}\n\n⚠️ Please submit manually.`);
         }
         
     } catch (error) {
-        addDebugLog('error', 'Auto-complete error: ' + error.message, error);
+        addDebugLog('error', 'Error: ' + error.message, error);
         saveProgress({ questionsCompleted, questionsWrong });
-        alert('Error during auto-complete: ' + error.message + '\n\nProgress saved. Check Debug tab.');
+        alert('Error: ' + error.message);
     } finally {
         completeButton.disabled = false;
         completeButton.textContent = originalText;
