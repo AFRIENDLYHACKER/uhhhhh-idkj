@@ -786,7 +786,7 @@ function setupAPIInterceptor() {
 
     // ==================== AUTO-FILL FUNCTIONALITY ====================
     
-    function autoFillAnswer() {
+async function autoFillAnswer() {
     addDebugLog('info', 'Attempting auto-fill...');
     
     try {
@@ -1090,6 +1090,7 @@ function setupAPIInterceptor() {
             answersFound: answers.length
         });
         alert(`Could not auto-fill formula blanks.\nInputs found: ${inputs.length}\nAnswers found: ${answers.length}\n\nAnswer(s): ${answers.join(', ')}\n\nCheck the Response tab for the answer.`);
+    }
         } else if (question.type === "orderlist") {
             addDebugLog('warning', 'Order list requires drag-and-drop');
             alert("Order list questions require manual interaction. Check Response tab for correct order.");
