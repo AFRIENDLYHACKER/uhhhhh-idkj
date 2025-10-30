@@ -736,38 +736,7 @@ function setupAPIInterceptor() {
                     hasFormat: false
                 };
             }
-            else if (questionType === "clozeformula") {
-    const validResponse = question.validation.valid_response.value;
-    let answers = [];
-    
-    // Parse the nested formula structure
-    if (Array.isArray(validResponse)) {
-        validResponse.forEach(responseSet => {
-            if (Array.isArray(responseSet)) {
-                responseSet.forEach(answer => {
-                    if (typeof answer === 'object' && answer.value) {
-                        answers.push(answer.value);
-                    } else if (typeof answer === 'string') {
-                        answers.push(answer);
-                    }
-                });
-            } else if (typeof responseSet === 'object' && responseSet.value) {
-                answers.push(responseSet.value);
-            } else if (typeof responseSet === 'string') {
-                answers.push(responseSet);
-            }
-        });
-    }
-    
-    addDebugLog('success', 'Cloze formula answer extracted', answers);
-    return { 
-        success: true, 
-        answer: answers.length > 0 ? answers.join(", ") : JSON.stringify(validResponse), 
-        type: questionType,
-        hasFormat: false,
-        rawAnswers: answers
-    };
-}
+            
             else {
                 const validResponse = question.validation.valid_response.value;
                 addDebugLog('warning', 'Using generic fallback for question type', { questionType, validResponse });
@@ -786,7 +755,7 @@ function setupAPIInterceptor() {
 
     // ==================== AUTO-FILL FUNCTIONALITY ====================
     
-function autoFillAnswer() {
+    function autoFillAnswer() {
     addDebugLog('info', 'Attempting auto-fill...');
     
     try {
@@ -858,7 +827,8 @@ function autoFillAnswer() {
                 }
             });
             alert("Answer auto-filled!");
-            } else if (question.type === "clozeformula") {
+            
+        } else if (question.type === "clozeformula") {
     // Handle formula fill-in-the-blank questions
     const validResponse = question.validation.valid_response.value;
     let answers = [];
@@ -980,6 +950,8 @@ function autoFillAnswer() {
             answersFound: answers.length
         });
         alert(`Could not auto-fill formula blanks.\nInputs found: ${inputs.length}\nAnswers found: ${answers.length}\n\nAnswer(s): ${answers.join(', ')}\n\nCheck the Response tab for the answer.`);
+    }
+            
         } else if (question.type === "orderlist") {
             addDebugLog('warning', 'Order list requires drag-and-drop');
             alert("Order list questions require manual interaction. Check Response tab for correct order.");
