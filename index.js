@@ -786,7 +786,7 @@ function setupAPIInterceptor() {
 
     // ==================== AUTO-FILL FUNCTIONALITY ====================
     
-    function autoFillAnswer() {
+    async function autoFillAnswer() {
     addDebugLog('info', 'Attempting auto-fill...');
     
     try {
