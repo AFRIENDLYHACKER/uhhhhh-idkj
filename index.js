@@ -800,7 +800,38 @@ function setupAPIInterceptor() {
                     hasFormat: false
                 };
             }
-            
+            else if (questionType === "clozeformula") {
+    const validResponse = question.validation.valid_response.value;
+    let answers = [];
+    
+    // Parse the nested formula structure
+    if (Array.isArray(validResponse)) {
+        validResponse.forEach(responseSet => {
+            if (Array.isArray(responseSet)) {
+                responseSet.forEach(answer => {
+                    if (typeof answer === 'object' && answer.value) {
+                        answers.push(answer.value);
+                    } else if (typeof answer === 'string') {
+                        answers.push(answer);
+                    }
+                });
+            } else if (typeof responseSet === 'object' && responseSet.value) {
+                answers.push(responseSet.value);
+            } else if (typeof responseSet === 'string') {
+                answers.push(responseSet);
+            }
+        });
+    }
+    
+    addDebugLog('success', 'Cloze formula answer extracted', answers);
+    return { 
+        success: true, 
+        answer: answers.length > 0 ? answers.join(", ") : JSON.stringify(validResponse), 
+        type: questionType,
+        hasFormat: false,
+        rawAnswers: answers
+    };
+}
             else if (questionType === "orderlist") {
                 const validResponse = question.validation.valid_response.value;
                 addDebugLog('success', 'Order list answer extracted', validResponse);
