@@ -800,7 +800,7 @@ function setupAPIInterceptor() {
                     hasFormat: false
                 };
             }
-        
+            
             else if (questionType === "orderlist") {
                 const validResponse = question.validation.valid_response.value;
                 addDebugLog('success', 'Order list answer extracted', validResponse);
@@ -811,8 +811,7 @@ function setupAPIInterceptor() {
                     hasFormat: false
                 };
             }
-
-                else if (questionType === "clozeformula") {
+            else if (questionType === "clozeformula") {
     const validResponse = question.validation.valid_response.value;
     let answers = [];
     
