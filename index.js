@@ -800,7 +800,19 @@ function setupAPIInterceptor() {
                     hasFormat: false
                 };
             }
-            else if (questionType === "clozeformula") {
+        
+            else if (questionType === "orderlist") {
+                const validResponse = question.validation.valid_response.value;
+                addDebugLog('success', 'Order list answer extracted', validResponse);
+                return { 
+                    success: true, 
+                    answer: validResponse.join(" → "), 
+                    type: questionType,
+                    hasFormat: false
+                };
+            }
+
+                else if (questionType === "clozeformula") {
     const validResponse = question.validation.valid_response.value;
     let answers = [];
     
@@ -832,17 +844,6 @@ function setupAPIInterceptor() {
         rawAnswers: answers
     };
 }
-            else if (questionType === "orderlist") {
-                const validResponse = question.validation.valid_response.value;
-                addDebugLog('success', 'Order list answer extracted', validResponse);
-                return { 
-                    success: true, 
-                    answer: validResponse.join(" → "), 
-                    type: questionType,
-                    hasFormat: false
-                };
-            }
-            
             else {
                 const validResponse = question.validation.valid_response.value;
                 addDebugLog('warning', 'Using generic fallback for question type', { questionType, validResponse });
