@@ -828,6 +828,34 @@ function setupAPIInterceptor() {
             });
             alert("Answer auto-filled!");
             
+        } else if (question.type === "clozeformula") {
+            // NEW: Handle formula fill-in-the-blank questions
+            const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+            const formulaInputs = document.querySelectorAll('input[data-lrn-component="formula"], .lrn-formula-input, input.formula-input');
+            
+            if (formulaInputs.length > 0) {
+                answers.forEach((answer, index) => {
+                    if (formulaInputs[index]) {
+                        formulaInputs[index].value = answer;
+                        formulaInputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                        formulaInputs[index].dispatchEvent(new Event('change', { bubbles: true }));
+                        addDebugLog('success', `Formula input ${index} filled`, { answer });
+                    }
+                });
+                alert("Formula blanks auto-filled!");
+            } else {
+                // Fallback to regular text inputs
+                const inputs = document.querySelectorAll('input[type="text"]');
+                answers.forEach((answer, index) => {
+                    if (inputs[index]) {
+                        inputs[index].value = answer;
+                        inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                        addDebugLog('success', `Formula text input ${index} filled`, { answer });
+                    }
+                });
+                alert("Formula blanks auto-filled!");
+            }
+            
         } else if (question.type === "orderlist") {
             addDebugLog('warning', 'Order list requires drag-and-drop');
             alert("Order list questions require manual interaction. Check Response tab for correct order.");
@@ -853,10 +881,54 @@ function setupAPIInterceptor() {
             } else {
                 alert("Could not find text input area");
             }
+        
+        // NEW: Additional question types
+        } else if (question.type === "highlight" || question.type === "highlighttext") {
+            addDebugLog('warning', 'Highlight questions require manual interaction');
+            alert("Highlight questions require manual selection. Check Response tab for the answer.");
+            
+        } else if (question.type === "hotspot") {
+            addDebugLog('warning', 'Hotspot questions require manual clicking');
+            alert("Hotspot questions require manual interaction. Check Response tab for the answer.");
+            
+        } else if (question.type === "graphplotting") {
+            addDebugLog('warning', 'Graph plotting requires manual interaction');
+            alert("Graph plotting questions require manual interaction. Check Response tab for the answer.");
+            
+        } else if (question.type === "classification") {
+            addDebugLog('warning', 'Classification requires drag-and-drop');
+            alert("Classification questions require manual drag-and-drop. Check Response tab for the answer.");
+            
+        } else if (question.type === "imageclozeassociation" || question.type === "imageclozeassociationV2") {
+            addDebugLog('warning', 'Image association requires drag-and-drop');
+            alert("Image association questions require manual interaction. Check Response tab for the answer.");
+            
+        } else if (question.type === "tokenhighlight") {
+            // Try to auto-select tokens
+            const correctTokens = Array.isArray(validResponse) ? validResponse : [validResponse];
+            const tokens = document.querySelectorAll('.lrn-token, [data-lrn-component="token"]');
+            let selected = 0;
+            
+            tokens.forEach((token, index) => {
+                if (correctTokens.includes(index) || correctTokens.includes(String(index))) {
+                    token.click();
+                    selected++;
+                }
+            });
+            
+            if (selected > 0) {
+                alert(`${selected} token(s) auto-selected!`);
+            } else {
+                alert("Could not auto-select tokens. Try manually.");
+            }
+            
+        } else if (question.type === "simplechart") {
+            addDebugLog('warning', 'Chart questions require manual input');
+            alert("Chart questions require manual data entry. Check Response tab for the answer.");
             
         } else {
             addDebugLog('warning', `Auto-fill not supported for type: ${question.type}`);
-            alert(`Auto-fill not supported for question type: ${question.type}`);
+            alert(`Auto-fill not supported for question type: ${question.type}\n\nSupported types:\n- MCQ / Checkboxes\n- Dropdowns\n- Text/Formula inputs\n- Token selection\n\nCheck Response tab for the answer.`);
             return;
         }
         
