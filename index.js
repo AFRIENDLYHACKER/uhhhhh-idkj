@@ -736,7 +736,38 @@ function setupAPIInterceptor() {
                     hasFormat: false
                 };
             }
-            
+            else if (questionType === "clozeformula") {
+    const validResponse = question.validation.valid_response.value;
+    let answers = [];
+    
+    // Parse the nested formula structure
+    if (Array.isArray(validResponse)) {
+        validResponse.forEach(responseSet => {
+            if (Array.isArray(responseSet)) {
+                responseSet.forEach(answer => {
+                    if (typeof answer === 'object' && answer.value) {
+                        answers.push(answer.value);
+                    } else if (typeof answer === 'string') {
+                        answers.push(answer);
+                    }
+                });
+            } else if (typeof responseSet === 'object' && responseSet.value) {
+                answers.push(responseSet.value);
+            } else if (typeof responseSet === 'string') {
+                answers.push(responseSet);
+            }
+        });
+    }
+    
+    addDebugLog('success', 'Cloze formula answer extracted', answers);
+    return { 
+        success: true, 
+        answer: answers.length > 0 ? answers.join(", ") : JSON.stringify(validResponse), 
+        type: questionType,
+        hasFormat: false,
+        rawAnswers: answers
+    };
+}
             else {
                 const validResponse = question.validation.valid_response.value;
                 addDebugLog('warning', 'Using generic fallback for question type', { questionType, validResponse });
@@ -829,32 +860,78 @@ function setupAPIInterceptor() {
             alert("Answer auto-filled!");
             
         } else if (question.type === "clozeformula") {
-            // NEW: Handle formula fill-in-the-blank questions
-            const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
-            const formulaInputs = document.querySelectorAll('input[data-lrn-component="formula"], .lrn-formula-input, input.formula-input');
-            
-            if (formulaInputs.length > 0) {
-                answers.forEach((answer, index) => {
-                    if (formulaInputs[index]) {
-                        formulaInputs[index].value = answer;
-                        formulaInputs[index].dispatchEvent(new Event('input', { bubbles: true }));
-                        formulaInputs[index].dispatchEvent(new Event('change', { bubbles: true }));
-                        addDebugLog('success', `Formula input ${index} filled`, { answer });
+    // NEW: Handle formula fill-in-the-blank questions
+    const validResponse = question.validation.valid_response.value;
+    let answers = [];
+    
+    // Parse the nested structure
+    if (Array.isArray(validResponse)) {
+        validResponse.forEach(responseSet => {
+            if (Array.isArray(responseSet)) {
+                responseSet.forEach(answer => {
+                    if (typeof answer === 'object' && answer.value) {
+                        answers.push(answer.value);
+                    } else if (typeof answer === 'string') {
+                        answers.push(answer);
                     }
                 });
-                alert("Formula blanks auto-filled!");
-            } else {
-                // Fallback to regular text inputs
-                const inputs = document.querySelectorAll('input[type="text"]');
-                answers.forEach((answer, index) => {
-                    if (inputs[index]) {
-                        inputs[index].value = answer;
-                        inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
-                        addDebugLog('success', `Formula text input ${index} filled`, { answer });
-                    }
-                });
-                alert("Formula blanks auto-filled!");
+            } else if (typeof responseSet === 'object' && responseSet.value) {
+                answers.push(responseSet.value);
+            } else if (typeof responseSet === 'string') {
+                answers.push(responseSet);
             }
+        });
+    }
+    
+    addDebugLog('info', 'Parsed clozeformula answers', { answers });
+    
+    // Try multiple selector strategies
+    let inputs = document.querySelectorAll('input[data-lrn-component="formula"]');
+    if (inputs.length === 0) {
+        inputs = document.querySelectorAll('.lrn-formula-input');
+    }
+    if (inputs.length === 0) {
+        inputs = document.querySelectorAll('input.formula-input');
+    }
+    if (inputs.length === 0) {
+        inputs = document.querySelectorAll('.lrn_response_input input[type="text"]');
+    }
+    if (inputs.length === 0) {
+        inputs = document.querySelectorAll('input[type="text"]');
+    }
+    
+    addDebugLog('info', `Found ${inputs.length} input(s) for clozeformula`);
+    
+    if (inputs.length > 0 && answers.length > 0) {
+        let filled = 0;
+        answers.forEach((answer, index) => {
+            if (inputs[index]) {
+                // Clear existing value first
+                inputs[index].value = '';
+                inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // Set new value
+                setTimeout(() => {
+                    inputs[index].value = answer;
+                    inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                    inputs[index].dispatchEvent(new Event('change', { bubbles: true }));
+                    inputs[index].dispatchEvent(new Event('blur', { bubbles: true }));
+                    addDebugLog('success', `Formula input ${index} filled with: ${answer}`);
+                }, 100 * index);
+                filled++;
+            }
+        });
+        
+        setTimeout(() => {
+            alert(`Formula blanks auto-filled! (${filled} blank${filled !== 1 ? 's' : ''})`);
+        }, 100 * answers.length + 200);
+    } else {
+        addDebugLog('error', 'No inputs or answers found for clozeformula', {
+            inputsFound: inputs.length,
+            answersFound: answers.length
+        });
+        alert(`Could not auto-fill formula blanks.\nInputs found: ${inputs.length}\nAnswers found: ${answers.length}\n\nCheck the Response tab for the answer.`);
+    }
             
         } else if (question.type === "orderlist") {
             addDebugLog('warning', 'Order list requires drag-and-drop');
