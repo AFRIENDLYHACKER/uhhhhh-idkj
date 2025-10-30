@@ -725,17 +725,6 @@ function setupAPIInterceptor() {
                     hasFormat: false
                 };
             }
-            
-            else if (questionType === "orderlist") {
-                const validResponse = question.validation.valid_response.value;
-                addDebugLog('success', 'Order list answer extracted', validResponse);
-                return { 
-                    success: true, 
-                    answer: validResponse.join(" → "), 
-                    type: questionType,
-                    hasFormat: false
-                };
-            }
             else if (questionType === "clozeformula") {
     const validResponse = question.validation.valid_response.value;
     let answers = [];
@@ -768,6 +757,17 @@ function setupAPIInterceptor() {
         rawAnswers: answers
     };
 }
+            else if (questionType === "orderlist") {
+                const validResponse = question.validation.valid_response.value;
+                addDebugLog('success', 'Order list answer extracted', validResponse);
+                return { 
+                    success: true, 
+                    answer: validResponse.join(" → "), 
+                    type: questionType,
+                    hasFormat: false
+                };
+            }
+            
             else {
                 const validResponse = question.validation.valid_response.value;
                 addDebugLog('warning', 'Using generic fallback for question type', { questionType, validResponse });
@@ -786,7 +786,7 @@ function setupAPIInterceptor() {
 
     // ==================== AUTO-FILL FUNCTIONALITY ====================
     
-    async function autoFillAnswer() {
+    function autoFillAnswer() {
     addDebugLog('info', 'Attempting auto-fill...');
     
     try {
@@ -860,237 +860,33 @@ function setupAPIInterceptor() {
             alert("Answer auto-filled!");
             
         } else if (question.type === "clozeformula") {
-    // NEW: Handle formula fill-in-the-blank questions
-    const validResponse = question.validation.valid_response.value;
-    let answers = [];
-    
-    // Parse the nested structure
-    if (Array.isArray(validResponse)) {
-        validResponse.forEach(responseSet => {
-            if (Array.isArray(responseSet)) {
-                responseSet.forEach(answer => {
-                    if (typeof answer === 'object' && answer.value) {
-                        answers.push(answer.value);
-                    } else if (typeof answer === 'string') {
-                        answers.push(answer);
+            // NEW: Handle formula fill-in-the-blank questions
+            const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+            const formulaInputs = document.querySelectorAll('input[data-lrn-component="formula"], .lrn-formula-input, input.formula-input');
+            
+            if (formulaInputs.length > 0) {
+                answers.forEach((answer, index) => {
+                    if (formulaInputs[index]) {
+                        formulaInputs[index].value = answer;
+                        formulaInputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                        formulaInputs[index].dispatchEvent(new Event('change', { bubbles: true }));
+                        addDebugLog('success', `Formula input ${index} filled`, { answer });
                     }
                 });
-            } else if (typeof responseSet === 'object' && responseSet.value) {
-                answers.push(responseSet.value);
-            } else if (typeof responseSet === 'string') {
-                answers.push(responseSet);
-            }
-        });
-    }
-    
-    addDebugLog('info', 'Parsed clozeformula answers', { answers });
-    
-    // Try multiple selector strategies
-    let inputs = document.querySelectorAll('input[data-lrn-component="formula"]');
-    if (inputs.length === 0) {
-        inputs = document.querySelectorAll('.lrn-formula-input');
-    }
-    if (inputs.length === 0) {
-        inputs = document.querySelectorAll('input.formula-input');
-    }
-    if (inputs.length === 0) {
-        inputs = document.querySelectorAll('.lrn_response_input input[type="text"]');
-    }
-    if (inputs.length === 0) {
-        inputs = document.querySelectorAll('input[type="text"]');
-    }
-    
-    addDebugLog('info', `Found ${inputs.length} input(s) for clozeformula`);
-    
-    if (inputs.length > 0 && answers.length > 0) {
-        let successCount = 0;
-        let failedCount = 0;
-        
-        for (let index = 0; index < answers.length && index < inputs.length; index++) {
-            const input = inputs[index];
-            const answer = answers[index];
-            let filled = false;
-            
-            // Strategy 1: Direct value assignment with events
-            try {
-                input.focus();
-                input.value = '';
-                input.value = answer;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-                input.dispatchEvent(new Event('blur', { bubbles: true }));
-                
-                await new Promise(resolve => setTimeout(resolve, 100));
-                
-                if (input.value === answer) {
-                    filled = true;
-                    addDebugLog('success', `Strategy 1 worked for input ${index}: ${answer}`);
-                }
-            } catch (e) {
-                addDebugLog('warning', `Strategy 1 failed for input ${index}`, e);
-            }
-            
-            // Strategy 2: Simulate typing character by character
-            if (!filled) {
-                try {
-                    input.focus();
-                    input.value = '';
-                    
-                    for (let i = 0; i < answer.length; i++) {
-                        const char = answer[i];
-                        input.value += char;
-                        
-                        // Simulate keydown, keypress, keyup for each character
-                        ['keydown', 'keypress', 'input', 'keyup'].forEach(eventType => {
-                            const event = new KeyboardEvent(eventType, {
-                                key: char,
-                                code: `Key${char.toUpperCase()}`,
-                                charCode: char.charCodeAt(0),
-                                keyCode: char.charCodeAt(0),
-                                which: char.charCodeAt(0),
-                                bubbles: true,
-                                cancelable: true
-                            });
-                            input.dispatchEvent(event);
-                        });
-                        
-                        await new Promise(resolve => setTimeout(resolve, 50));
-                    }
-                    
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                    input.dispatchEvent(new Event('blur', { bubbles: true }));
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    if (input.value === answer) {
-                        filled = true;
-                        addDebugLog('success', `Strategy 2 (typing) worked for input ${index}: ${answer}`);
-                    }
-                } catch (e) {
-                    addDebugLog('warning', `Strategy 2 failed for input ${index}`, e);
-                }
-            }
-            
-            // Strategy 3: Use native setter
-            if (!filled) {
-                try {
-                    input.focus();
-                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-                    nativeInputValueSetter.call(input, answer);
-                    
-                    const inputEvent = new Event('input', { bubbles: true });
-                    input.dispatchEvent(inputEvent);
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                    input.dispatchEvent(new Event('blur', { bubbles: true }));
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    if (input.value === answer) {
-                        filled = true;
-                        addDebugLog('success', `Strategy 3 (native setter) worked for input ${index}: ${answer}`);
-                    }
-                } catch (e) {
-                    addDebugLog('warning', `Strategy 3 failed for input ${index}`, e);
-                }
-            }
-            
-            // Strategy 4: Use InputEvent with data
-            if (!filled) {
-                try {
-                    input.focus();
-                    input.value = '';
-                    
-                    const inputEvent = new InputEvent('input', {
-                        data: answer,
-                        inputType: 'insertText',
-                        bubbles: true,
-                        cancelable: true
-                    });
-                    
-                    input.value = answer;
-                    input.dispatchEvent(inputEvent);
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                    input.dispatchEvent(new Event('blur', { bubbles: true }));
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    if (input.value === answer) {
-                        filled = true;
-                        addDebugLog('success', `Strategy 4 (InputEvent) worked for input ${index}: ${answer}`);
-                    }
-                } catch (e) {
-                    addDebugLog('warning', `Strategy 4 failed for input ${index}`, e);
-                }
-            }
-            
-            // Strategy 5: Try clicking and pasting
-            if (!filled) {
-                try {
-                    input.focus();
-                    input.click();
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    
-                    input.select();
-                    document.execCommand('insertText', false, answer);
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    if (input.value === answer) {
-                        filled = true;
-                        addDebugLog('success', `Strategy 5 (execCommand) worked for input ${index}: ${answer}`);
-                    }
-                } catch (e) {
-                    addDebugLog('warning', `Strategy 5 failed for input ${index}`, e);
-                }
-            }
-            
-            // Final check
-            await new Promise(resolve => setTimeout(resolve, 200));
-            
-            if (input.value === answer || input.value.trim() === answer.trim()) {
-                successCount++;
-                addDebugLog('success', `✓ Input ${index} filled successfully: ${answer}`);
+                alert("Formula blanks auto-filled!");
             } else {
-                failedCount++;
-                addDebugLog('error', `✗ Input ${index} FAILED. Expected: "${answer}", Got: "${input.value}"`);
-                
-                // Try one last desperate attempt - set attribute
-                try {
-                    input.setAttribute('value', answer);
-                    input.value = answer;
-                    
-                    // Trigger React/Vue/Angular change detection
-                    const event = new Event('input', { bubbles: true });
-                    Object.defineProperty(event, 'target', { writable: false, value: input });
-                    input.dispatchEvent(event);
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    if (input.value === answer) {
-                        successCount++;
-                        failedCount--;
-                        addDebugLog('success', `Last resort worked for input ${index}!`);
+                // Fallback to regular text inputs
+                const inputs = document.querySelectorAll('input[type="text"]');
+                answers.forEach((answer, index) => {
+                    if (inputs[index]) {
+                        inputs[index].value = answer;
+                        inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                        addDebugLog('success', `Formula text input ${index} filled`, { answer });
                     }
-                } catch (e) {
-                    addDebugLog('error', `All strategies failed for input ${index}`, e);
-                }
+                });
+                alert("Formula blanks auto-filled!");
             }
-        }
-        
-        const totalAttempted = answers.length;
-        const message = successCount === totalAttempted
-            ? `✅ Auto-filled ${successCount}/${totalAttempted} blank(s) successfully!`
-            : `⚠️ Filled ${successCount}/${totalAttempted} blank(s)\n${failedCount} failed - the page might be blocking JavaScript input.\n\nAnswer(s): ${answers.join(', ')}\n\nTry typing manually or check Debug tab for details.`;
-        
-        alert(message);
-        
-    } else {
-        addDebugLog('error', 'No inputs or answers found for clozeformula', {
-            inputsFound: inputs.length,
-            answersFound: answers.length
-        });
-        alert(`Could not auto-fill formula blanks.\nInputs found: ${inputs.length}\nAnswers found: ${answers.length}\n\nAnswer(s): ${answers.join(', ')}\n\nCheck the Response tab for the answer.`);
-    }
+            
         } else if (question.type === "orderlist") {
             addDebugLog('warning', 'Order list requires drag-and-drop');
             alert("Order list questions require manual interaction. Check Response tab for correct order.");
