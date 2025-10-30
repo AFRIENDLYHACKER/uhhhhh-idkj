@@ -786,7 +786,7 @@ function setupAPIInterceptor() {
 
     // ==================== AUTO-FILL FUNCTIONALITY ====================
     
-async function autoFillAnswer() {
+function autoFillAnswer() {
     addDebugLog('info', 'Attempting auto-fill...');
     
     try {
@@ -858,9 +858,8 @@ async function autoFillAnswer() {
                 }
             });
             alert("Answer auto-filled!");
-            
-        } else if (question.type === "clozeformula") {
-    // NEW: Handle formula fill-in-the-blank questions
+            } else if (question.type === "clozeformula") {
+    // Handle formula fill-in-the-blank questions
     const validResponse = question.validation.valid_response.value;
     let answers = [];
     
@@ -904,183 +903,74 @@ async function autoFillAnswer() {
     
     if (inputs.length > 0 && answers.length > 0) {
         let successCount = 0;
-        let failedCount = 0;
         
-        for (let index = 0; index < answers.length && index < inputs.length; index++) {
-            const input = inputs[index];
-            const answer = answers[index];
-            let filled = false;
-            
-            // Strategy 1: Direct value assignment with events
-            try {
-                input.focus();
-                input.value = '';
-                input.value = answer;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-                input.dispatchEvent(new Event('blur', { bubbles: true }));
+        answers.forEach((answer, index) => {
+            if (inputs[index]) {
+                const input = inputs[index];
+                let filled = false;
                 
-                await new Promise(resolve => setTimeout(resolve, 100));
-                
-                if (input.value === answer) {
-                    filled = true;
-                    addDebugLog('success', `Strategy 1 worked for input ${index}: ${answer}`);
-                }
-            } catch (e) {
-                addDebugLog('warning', `Strategy 1 failed for input ${index}`, e);
-            }
-            
-            // Strategy 2: Simulate typing character by character
-            if (!filled) {
+                // Strategy 1: Direct value with events
                 try {
                     input.focus();
-                    input.value = '';
-                    
-                    for (let i = 0; i < answer.length; i++) {
-                        const char = answer[i];
-                        input.value += char;
-                        
-                        // Simulate keydown, keypress, keyup for each character
-                        ['keydown', 'keypress', 'input', 'keyup'].forEach(eventType => {
-                            const event = new KeyboardEvent(eventType, {
-                                key: char,
-                                code: `Key${char.toUpperCase()}`,
-                                charCode: char.charCodeAt(0),
-                                keyCode: char.charCodeAt(0),
-                                which: char.charCodeAt(0),
-                                bubbles: true,
-                                cancelable: true
-                            });
-                            input.dispatchEvent(event);
-                        });
-                        
-                        await new Promise(resolve => setTimeout(resolve, 50));
-                    }
-                    
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                    input.dispatchEvent(new Event('blur', { bubbles: true }));
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    if (input.value === answer) {
-                        filled = true;
-                        addDebugLog('success', `Strategy 2 (typing) worked for input ${index}: ${answer}`);
-                    }
-                } catch (e) {
-                    addDebugLog('warning', `Strategy 2 failed for input ${index}`, e);
-                }
-            }
-            
-            // Strategy 3: Use native setter
-            if (!filled) {
-                try {
-                    input.focus();
-                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-                    nativeInputValueSetter.call(input, answer);
-                    
-                    const inputEvent = new Event('input', { bubbles: true });
-                    input.dispatchEvent(inputEvent);
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                    input.dispatchEvent(new Event('blur', { bubbles: true }));
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    if (input.value === answer) {
-                        filled = true;
-                        addDebugLog('success', `Strategy 3 (native setter) worked for input ${index}: ${answer}`);
-                    }
-                } catch (e) {
-                    addDebugLog('warning', `Strategy 3 failed for input ${index}`, e);
-                }
-            }
-            
-            // Strategy 4: Use InputEvent with data
-            if (!filled) {
-                try {
-                    input.focus();
-                    input.value = '';
-                    
-                    const inputEvent = new InputEvent('input', {
-                        data: answer,
-                        inputType: 'insertText',
-                        bubbles: true,
-                        cancelable: true
-                    });
-                    
                     input.value = answer;
-                    input.dispatchEvent(inputEvent);
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
                     input.dispatchEvent(new Event('change', { bubbles: true }));
                     input.dispatchEvent(new Event('blur', { bubbles: true }));
                     
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
                     if (input.value === answer) {
                         filled = true;
-                        addDebugLog('success', `Strategy 4 (InputEvent) worked for input ${index}: ${answer}`);
+                        addDebugLog('success', `Strategy 1 worked for input ${index}: ${answer}`);
                     }
                 } catch (e) {
-                    addDebugLog('warning', `Strategy 4 failed for input ${index}`, e);
+                    addDebugLog('warning', `Strategy 1 failed for input ${index}`, e);
                 }
-            }
-            
-            // Strategy 5: Try clicking and pasting
-            if (!filled) {
-                try {
-                    input.focus();
-                    input.click();
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    
-                    input.select();
-                    document.execCommand('insertText', false, answer);
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    if (input.value === answer) {
-                        filled = true;
-                        addDebugLog('success', `Strategy 5 (execCommand) worked for input ${index}: ${answer}`);
-                    }
-                } catch (e) {
-                    addDebugLog('warning', `Strategy 5 failed for input ${index}`, e);
-                }
-            }
-            
-            // Final check
-            await new Promise(resolve => setTimeout(resolve, 200));
-            
-            if (input.value === answer || input.value.trim() === answer.trim()) {
-                successCount++;
-                addDebugLog('success', `✓ Input ${index} filled successfully: ${answer}`);
-            } else {
-                failedCount++;
-                addDebugLog('error', `✗ Input ${index} FAILED. Expected: "${answer}", Got: "${input.value}"`);
                 
-                // Try one last desperate attempt - set attribute
-                try {
-                    input.setAttribute('value', answer);
-                    input.value = answer;
-                    
-                    // Trigger React/Vue/Angular change detection
-                    const event = new Event('input', { bubbles: true });
-                    Object.defineProperty(event, 'target', { writable: false, value: input });
-                    input.dispatchEvent(event);
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    if (input.value === answer) {
-                        successCount++;
-                        failedCount--;
-                        addDebugLog('success', `Last resort worked for input ${index}!`);
+                // Strategy 2: Native setter
+                if (!filled) {
+                    try {
+                        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                        nativeInputValueSetter.call(input, answer);
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        
+                        if (input.value === answer) {
+                            filled = true;
+                            addDebugLog('success', `Strategy 2 (native setter) worked for input ${index}: ${answer}`);
+                        }
+                    } catch (e) {
+                        addDebugLog('warning', `Strategy 2 failed for input ${index}`, e);
                     }
-                } catch (e) {
-                    addDebugLog('error', `All strategies failed for input ${index}`, e);
+                }
+                
+                // Strategy 3: setAttribute
+                if (!filled) {
+                    try {
+                        input.setAttribute('value', answer);
+                        input.value = answer;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        
+                        if (input.value === answer) {
+                            filled = true;
+                            addDebugLog('success', `Strategy 3 (setAttribute) worked for input ${index}: ${answer}`);
+                        }
+                    } catch (e) {
+                        addDebugLog('warning', `Strategy 3 failed for input ${index}`, e);
+                    }
+                }
+                
+                if (filled) {
+                    successCount++;
+                    addDebugLog('success', `✓ Input ${index} filled: ${answer}`);
+                } else {
+                    addDebugLog('error', `✗ Input ${index} FAILED. Expected: "${answer}", Got: "${input.value}"`);
                 }
             }
-        }
+        });
         
         const totalAttempted = answers.length;
         const message = successCount === totalAttempted
             ? `✅ Auto-filled ${successCount}/${totalAttempted} blank(s) successfully!`
-            : `⚠️ Filled ${successCount}/${totalAttempted} blank(s)\n${failedCount} failed - the page might be blocking JavaScript input.\n\nAnswer(s): ${answers.join(', ')}\n\nTry typing manually or check Debug tab for details.`;
+            : `⚠️ Filled ${successCount}/${totalAttempted} blank(s)\n\nAnswer(s): ${answers.join(', ')}\n\n${totalAttempted - successCount} failed - try typing manually or check Debug tab.`;
         
         alert(message);
         
