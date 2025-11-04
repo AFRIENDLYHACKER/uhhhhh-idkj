@@ -823,97 +823,222 @@ function setupAPIInterceptor() {
         }
         
         let totalFilled = 0;
+        let failedQuestions = [];
         
         // Loop through ALL questions on the page
         for (let qIndex = 0; qIndex < questions.length; qIndex++) {
             const question = questions[qIndex];
+            
+            // Safety check for validation
+            if (!question.validation || !question.validation.valid_response || !question.validation.valid_response.value) {
+                addDebugLog('warning', `Q${qIndex + 1}: No valid response found, skipping`, { question });
+                failedQuestions.push(`Q${qIndex + 1}: No answer available`);
+                continue;
+            }
+            
             const validResponse = question.validation.valid_response.value;
             
-            addDebugLog('info', `Processing question ${qIndex + 1} of ${questions.length}`);
+            addDebugLog('info', `Processing question ${qIndex + 1} of ${questions.length}`, { type: question.type, response: validResponse });
 
-            if (question.type === "mcq") {
-                const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
-                const radios = document.querySelectorAll(`input[type="radio"][name*="${question.response_id}"], input[type="radio"]`);
-                
-                let filled = 0;
-                radios.forEach(radio => {
-                    const isCorrect = correctValues.some(val => 
-                        radio.value === val || radio.value === (typeof val === 'object' ? val.value : val)
-                    );
-                    if (isCorrect && !radio.checked) {
-                        radio.click();
-                        filled++;
-                        totalFilled++;
-                        addDebugLog('success', `Q${qIndex + 1}: MCQ auto-filled`, { value: radio.value });
+            try {
+                if (question.type === "mcq") {
+                    const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+                    // Use response_id to target specific question's inputs
+                    let radios = document.querySelectorAll(`input[type="radio"][data-lrn-response-id="${question.response_id}"]`);
+                    
+                    // Fallback: if no radios found with response_id, try finding by proximity
+                    if (radios.length === 0) {
+                        const allRadios = Array.from(document.querySelectorAll('input[type="radio"]'));
+                        const startIdx = qIndex * 10; // Rough estimate
+                        radios = allRadios.slice(startIdx, startIdx + 20);
                     }
-                });
-                
-            } else if (question.type === "choicematrix") {
-                const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
-                const checkboxes = document.querySelectorAll(`input[type="checkbox"][name*="${question.response_id}"], input[type="checkbox"]`);
-                
-                correctValues.forEach(val => {
-                    checkboxes.forEach(checkbox => {
-                        const checkValue = typeof val === 'object' ? val.value : val;
-                        if (checkbox.value === checkValue && !checkbox.checked) {
-                            checkbox.click();
+                    
+                    let filled = 0;
+                    radios.forEach(radio => {
+                        const isCorrect = correctValues.some(val => 
+                            radio.value === val || radio.value === (typeof val === 'object' ? val.value : val)
+                        );
+                        if (isCorrect && !radio.checked) {
+                            radio.click();
+                            filled++;
                             totalFilled++;
+                            addDebugLog('success', `Q${qIndex + 1}: MCQ auto-filled`, { value: radio.value });
                         }
                     });
-                });
-                
-            } else if (question.type === "clozedropdown") {
-                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
-                const selects = document.querySelectorAll(`select[data-lrn-response-id="${question.response_id}"], select`);
-                answers.forEach((answer, index) => {
-                    if (selects[index]) {
-                        selects[index].value = answer;
-                        selects[index].dispatchEvent(new Event('change', { bubbles: true }));
-                        totalFilled++;
-                        addDebugLog('success', `Q${qIndex + 1}: Dropdown ${index} filled`, { answer });
+                    
+                    if (filled === 0) {
+                        failedQuestions.push(`Q${qIndex + 1}: No matching radio found`);
                     }
-                });
-                
-            } else if (question.type === "clozetext") {
-                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
-                const inputs = document.querySelectorAll(`input[type="text"][data-lrn-response-id="${question.response_id}"], input[type="text"]`);
-                answers.forEach((answer, index) => {
-                    if (inputs[index]) {
-                        inputs[index].value = answer;
-                        inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
-                        totalFilled++;
-                        addDebugLog('success', `Q${qIndex + 1}: Text input ${index} filled`, { answer });
+                    
+                } else if (question.type === "choicematrix") {
+                    const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+                    let checkboxes = document.querySelectorAll(`input[type="checkbox"][data-lrn-response-id="${question.response_id}"]`);
+                    
+                    if (checkboxes.length === 0) {
+                        checkboxes = document.querySelectorAll('input[type="checkbox"]');
                     }
-                });
-                
-            } else if (question.type === "clozeformula") {
-                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
-                const formulaInputs = document.querySelectorAll(`input[data-lrn-component="formula"][data-lrn-response-id="${question.response_id}"], input.formula-input`);
-                
-                if (formulaInputs.length > 0) {
+                    
+                    let filled = 0;
+                    correctValues.forEach(val => {
+                        checkboxes.forEach(checkbox => {
+                            const checkValue = typeof val === 'object' ? val.value : val;
+                            if (checkbox.value === checkValue && !checkbox.checked) {
+                                checkbox.click();
+                                filled++;
+                                totalFilled++;
+                            }
+                        });
+                    });
+                    
+                    if (filled === 0) {
+                        failedQuestions.push(`Q${qIndex + 1}: No matching checkboxes found`);
+                    }
+                    
+                } else if (question.type === "clozedropdown") {
+                    const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+                    let selects = document.querySelectorAll(`select[data-lrn-response-id="${question.response_id}"]`);
+                    
+                    // Fallback: get all selects and slice by question index
+                    if (selects.length === 0) {
+                        const allSelects = document.querySelectorAll('select');
+                        // Try to find selects that belong to this question
+                        selects = Array.from(allSelects).slice(qIndex * 5, (qIndex + 1) * 5);
+                    }
+                    
+                    let filled = 0;
+                    answers.forEach((answer, index) => {
+                        if (selects[index]) {
+                            selects[index].value = answer;
+                            selects[index].dispatchEvent(new Event('change', { bubbles: true }));
+                            filled++;
+                            totalFilled++;
+                            addDebugLog('success', `Q${qIndex + 1}: Dropdown ${index} filled`, { answer });
+                        }
+                    });
+                    
+                    if (filled === 0) {
+                        failedQuestions.push(`Q${qIndex + 1}: No dropdowns found or filled`);
+                    }
+                    
+                } else if (question.type === "clozetext") {
+                    const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+                    let inputs = document.querySelectorAll(`input[type="text"][data-lrn-response-id="${question.response_id}"]`);
+                    
+                    if (inputs.length === 0) {
+                        const allInputs = document.querySelectorAll('input[type="text"]');
+                        inputs = Array.from(allInputs).slice(qIndex * 5, (qIndex + 1) * 5);
+                    }
+                    
+                    let filled = 0;
+                    answers.forEach((answer, index) => {
+                        if (inputs[index]) {
+                            inputs[index].value = answer;
+                            inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                            filled++;
+                            totalFilled++;
+                            addDebugLog('success', `Q${qIndex + 1}: Text input ${index} filled`, { answer });
+                        }
+                    });
+                    
+                    if (filled === 0) {
+                        failedQuestions.push(`Q${qIndex + 1}: No text inputs found or filled`);
+                    }
+                    
+                } else if (question.type === "clozeformula") {
+                    const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+                    let formulaInputs = document.querySelectorAll(`input[data-lrn-component="formula"][data-lrn-response-id="${question.response_id}"]`);
+                    
+                    if (formulaInputs.length === 0) {
+                        formulaInputs = document.querySelectorAll('input[data-lrn-component="formula"], .lrn-formula-input, input.formula-input');
+                    }
+                    
+                    let filled = 0;
                     answers.forEach((answer, index) => {
                         if (formulaInputs[index]) {
                             formulaInputs[index].value = answer;
                             formulaInputs[index].dispatchEvent(new Event('input', { bubbles: true }));
                             formulaInputs[index].dispatchEvent(new Event('change', { bubbles: true }));
+                            filled++;
                             totalFilled++;
                             addDebugLog('success', `Q${qIndex + 1}: Formula input ${index} filled`, { answer });
                         }
                     });
+                    
+                    if (filled === 0) {
+                        // Fallback to regular text inputs
+                        const textInputs = document.querySelectorAll('input[type="text"]');
+                        answers.forEach((answer, index) => {
+                            if (textInputs[index]) {
+                                textInputs[index].value = answer;
+                                textInputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                                filled++;
+                                totalFilled++;
+                            }
+                        });
+                    }
+                    
+                    if (filled === 0) {
+                        failedQuestions.push(`Q${qIndex + 1}: No formula inputs found or filled`);
+                    }
+                    
+                } else if (question.type === "association") {
+                    failedQuestions.push(`Q${qIndex + 1}: Matching questions require manual drag-and-drop`);
+                    
+                } else if (question.type === "orderlist") {
+                    failedQuestions.push(`Q${qIndex + 1}: Order list requires manual drag-and-drop`);
+                    
+                } else if (["formulaV2", "chemistry"].includes(question.type)) {
+                    const input = document.querySelector(`input[data-lrn-response-id="${question.response_id}"]`) || 
+                                 document.querySelector('input[data-lrn-component="formula"], input[type="text"]');
+                    if (input) {
+                        input.value = validResponse;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        totalFilled++;
+                        addDebugLog('success', `Q${qIndex + 1}: Formula filled`, { answer: validResponse });
+                    } else {
+                        failedQuestions.push(`Q${qIndex + 1}: Formula input not found`);
+                    }
+                    
+                } else if (["plaintext", "shorttext", "longtext"].includes(question.type)) {
+                    const textarea = document.querySelector(`textarea[data-lrn-response-id="${question.response_id}"]`) || 
+                                    document.querySelector('textarea');
+                    if (textarea) {
+                        textarea.value = validResponse;
+                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                        totalFilled++;
+                        addDebugLog('success', `Q${qIndex + 1}: Text response filled`, { answer: validResponse });
+                    } else {
+                        failedQuestions.push(`Q${qIndex + 1}: Textarea not found`);
+                    }
+                    
+                } else {
+                    failedQuestions.push(`Q${qIndex + 1}: Unsupported type (${question.type})`);
                 }
+                
+            } catch (innerError) {
+                addDebugLog('error', `Q${qIndex + 1}: Error filling`, innerError);
+                failedQuestions.push(`Q${qIndex + 1}: ${innerError.message}`);
             }
-            // Add other question types as needed...
         }
         
-        if (totalFilled > 0) {
-            alert(`✅ Auto-filled ${totalFilled} answer(s) across ${questions.length} question(s)!`);
-        } else {
-            alert(`⚠️ Found ${questions.length} question(s) but couldn't auto-fill any. Check console for details.`);
+        // Build result message
+        let message = `✅ Auto-filled ${totalFilled} answer(s) across ${questions.length} question(s)!`;
+        
+        if (failedQuestions.length > 0) {
+            message += `\n\n⚠️ Issues:\n${failedQuestions.join('\n')}`;
+        }
+        
+        alert(message);
+        
+        if (totalFilled === 0) {
+            console.log('Full question data:', questions);
+            alert('Check the console for full question data to help debug.');
         }
         
     } catch (error) {
         addDebugLog('error', 'Auto-fill error: ' + error.message, error);
-        alert("Error auto-filling: " + error.message);
+        console.error('Full error:', error);
+        alert("Error auto-filling: " + error.message + "\n\nCheck console for details.");
     }
 }
 // ==================== ENHANCED AUTO-COMPLETE ====================
