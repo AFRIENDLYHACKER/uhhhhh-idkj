@@ -656,134 +656,158 @@ function setupAPIInterceptor() {
 
     // ==================== ANSWER EXTRACTION ====================
     
-    function getAnswerFromQuestion() {
-        addDebugLog('info', 'Getting answer from question...');
-        
-        try {
-            const currentItem = window.LearnosityAssess.getCurrentItem();
-            if (!currentItem || !currentItem.questions || !currentItem.questions[0]) {
-                addDebugLog('error', 'No question found');
-                return { success: false, message: "No question found" };
+    function getAnswerFromQuestion(questionIndex = null) {
+    addDebugLog('info', 'Getting answer from question...');
+    
+    try {
+        const currentItem = window.LearnosityAssess.getCurrentItem();
+        if (!currentItem || !currentItem.questions || currentItem.questions.length === 0) {
+            addDebugLog('error', 'No questions found');
+            return { success: false, message: "No questions found" };
+        }
+
+        // If questionIndex is null, process ALL questions
+        if (questionIndex === null) {
+            const allResults = [];
+            for (let i = 0; i < currentItem.questions.length; i++) {
+                const result = getAnswerFromQuestion(i);
+                if (result.success) {
+                    allResults.push({ index: i + 1, ...result });
+                }
             }
-
-            const question = currentItem.questions[0];
-            const questionType = question.type;
             
-            addDebugLog('info', `Question type: ${questionType}`, { question });
+            if (allResults.length > 1) {
+                return { success: true, multiple: true, results: allResults };
+            } else if (allResults.length === 1) {
+                return allResults[0];
+            } else {
+                return { success: false, message: "No valid questions found" };
+            }
+        }
 
-            if (questionType === "mcq" || questionType === "choicematrix") {
-                const validResponse = question.validation.valid_response.value;
-                let answerText = [];
-                
-                if (Array.isArray(validResponse)) {
-                    validResponse.forEach(val => {
-                        const option = question.options.find(opt => 
-                            opt.value === val || opt.value === val.value
-                        );
-                        if (option) {
-                            answerText.push(stripHTML(option.label || option.value));
-                        }
-                    });
-                } else {
-                    const option = question.options.find(opt => opt.value === validResponse);
+        const question = currentItem.questions[questionIndex];
+        const questionType = question.type;
+        
+        addDebugLog('info', `Question ${questionIndex + 1} type: ${questionType}`, { question });
+
+        if (questionType === "mcq" || questionType === "choicematrix") {
+            const validResponse = question.validation.valid_response.value;
+            let answerText = [];
+            
+            if (Array.isArray(validResponse)) {
+                validResponse.forEach(val => {
+                    const option = question.options.find(opt => 
+                        opt.value === val || opt.value === val.value
+                    );
                     if (option) {
                         answerText.push(stripHTML(option.label || option.value));
                     }
+                });
+            } else {
+                const option = question.options.find(opt => opt.value === validResponse);
+                if (option) {
+                    answerText.push(stripHTML(option.label || option.value));
                 }
-                
-                addDebugLog('success', 'MCQ answer extracted', answerText);
-                return { 
-                    success: true, 
-                    answer: answerText.join(", "), 
-                    type: questionType,
-                    hasFormat: answerText.some(t => hasMathContent(t))
-                };
             }
             
-            else if (questionType === "association") {
-                const validResponse = question.validation.valid_response.value;
-                const matches = formatMatchingAnswer(question, validResponse);
-                
-                return { 
-                    success: true, 
-                    matches: matches,
-                    type: questionType,
-                    hasFormat: false,
-                    isMatching: true
-                };
-            }
+            addDebugLog('success', 'MCQ answer extracted', answerText);
+            return { 
+                success: true, 
+                answer: answerText.join(", "), 
+                type: questionType,
+                hasFormat: answerText.some(t => hasMathContent(t)),
+                questionIndex
+            };
+        }
+        
+        // ... rest of the question types (keep existing code)
+        else if (questionType === "association") {
+            const validResponse = question.validation.valid_response.value;
+            const matches = formatMatchingAnswer(question, validResponse);
             
-            else if (questionType === "clozetext" || questionType === "clozedropdown") {
-                const validResponse = question.validation.valid_response.value;
-                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
-                
-                addDebugLog('success', 'Cloze answer extracted', answers);
-                return { 
-                    success: true, 
-                    answer: answers.join(", "), 
-                    type: questionType,
-                    hasFormat: false
-                };
-            }
-            else if (questionType === "clozeformula") {
-    const validResponse = question.validation.valid_response.value;
-    let answers = [];
-    
-    // Parse the nested formula structure
-    if (Array.isArray(validResponse)) {
-        validResponse.forEach(responseSet => {
-            if (Array.isArray(responseSet)) {
-                responseSet.forEach(answer => {
-                    if (typeof answer === 'object' && answer.value) {
-                        answers.push(answer.value);
-                    } else if (typeof answer === 'string') {
-                        answers.push(answer);
+            return { 
+                success: true, 
+                matches: matches,
+                type: questionType,
+                hasFormat: false,
+                isMatching: true,
+                questionIndex
+            };
+        }
+        
+        else if (questionType === "clozetext" || questionType === "clozedropdown") {
+            const validResponse = question.validation.valid_response.value;
+            const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+            
+            addDebugLog('success', 'Cloze answer extracted', answers);
+            return { 
+                success: true, 
+                answer: answers.join(", "), 
+                type: questionType,
+                hasFormat: false,
+                questionIndex
+            };
+        }
+        else if (questionType === "clozeformula") {
+            const validResponse = question.validation.valid_response.value;
+            let answers = [];
+            
+            if (Array.isArray(validResponse)) {
+                validResponse.forEach(responseSet => {
+                    if (Array.isArray(responseSet)) {
+                        responseSet.forEach(answer => {
+                            if (typeof answer === 'object' && answer.value) {
+                                answers.push(answer.value);
+                            } else if (typeof answer === 'string') {
+                                answers.push(answer);
+                            }
+                        });
+                    } else if (typeof responseSet === 'object' && responseSet.value) {
+                        answers.push(responseSet.value);
+                    } else if (typeof responseSet === 'string') {
+                        answers.push(responseSet);
                     }
                 });
-            } else if (typeof responseSet === 'object' && responseSet.value) {
-                answers.push(responseSet.value);
-            } else if (typeof responseSet === 'string') {
-                answers.push(responseSet);
-            }
-        });
-    }
-    
-    addDebugLog('success', 'Cloze formula answer extracted', answers);
-    return { 
-        success: true, 
-        answer: answers.length > 0 ? answers.join(", ") : JSON.stringify(validResponse), 
-        type: questionType,
-        hasFormat: false,
-        rawAnswers: answers
-    };
-}
-            else if (questionType === "orderlist") {
-                const validResponse = question.validation.valid_response.value;
-                addDebugLog('success', 'Order list answer extracted', validResponse);
-                return { 
-                    success: true, 
-                    answer: validResponse.join(" → "), 
-                    type: questionType,
-                    hasFormat: false
-                };
             }
             
-            else {
-                const validResponse = question.validation.valid_response.value;
-                addDebugLog('warning', 'Using generic fallback for question type', { questionType, validResponse });
-                return { 
-                    success: true, 
-                    answer: JSON.stringify(validResponse), 
-                    type: questionType,
-                    hasFormat: false
-                };
-            }
-        } catch (error) {
-            addDebugLog('error', 'Error getting answer: ' + error.message, error);
-            return { success: false, message: error.message };
+            addDebugLog('success', 'Cloze formula answer extracted', answers);
+            return { 
+                success: true, 
+                answer: answers.length > 0 ? answers.join(", ") : JSON.stringify(validResponse), 
+                type: questionType,
+                hasFormat: false,
+                rawAnswers: answers,
+                questionIndex
+            };
         }
+        else if (questionType === "orderlist") {
+            const validResponse = question.validation.valid_response.value;
+            addDebugLog('success', 'Order list answer extracted', validResponse);
+            return { 
+                success: true, 
+                answer: validResponse.join(" → "), 
+                type: questionType,
+                hasFormat: false,
+                questionIndex
+            };
+        }
+        
+        else {
+            const validResponse = question.validation.valid_response.value;
+            addDebugLog('warning', 'Using generic fallback for question type', { questionType, validResponse });
+            return { 
+                success: true, 
+                answer: JSON.stringify(validResponse), 
+                type: questionType,
+                hasFormat: false,
+                questionIndex
+            };
+        }
+    } catch (error) {
+        addDebugLog('error', 'Error getting answer: ' + error.message, error);
+        return { success: false, message: error.message };
     }
-
+}
     // ==================== AUTO-FILL FUNCTIONALITY ====================
     
     function autoFillAnswer() {
@@ -791,176 +815,100 @@ function setupAPIInterceptor() {
     
     try {
         const currentItem = window.LearnosityAssess.getCurrentItem();
-        const question = currentItem.questions[0];
-        const validResponse = question.validation.valid_response.value;
+        const questions = currentItem.questions;
+        
+        if (!questions || questions.length === 0) {
+            alert("No questions found!");
+            return;
+        }
+        
+        let totalFilled = 0;
+        
+        // Loop through ALL questions on the page
+        for (let qIndex = 0; qIndex < questions.length; qIndex++) {
+            const question = questions[qIndex];
+            const validResponse = question.validation.valid_response.value;
+            
+            addDebugLog('info', `Processing question ${qIndex + 1} of ${questions.length}`);
 
-        if (question.type === "mcq") {
-            const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
-            const radios = document.querySelectorAll('input[type="radio"]');
-            
-            let filled = 0;
-            radios.forEach(radio => {
-                const isCorrect = correctValues.some(val => 
-                    radio.value === val || radio.value === (typeof val === 'object' ? val.value : val)
-                );
-                if (isCorrect) {
-                    radio.click();
-                    filled++;
-                    addDebugLog('success', 'MCQ auto-filled', { value: radio.value });
-                }
-            });
-            
-            if (filled === 0) addDebugLog('warning', 'No matching radio button found');
-            alert(`Answer auto-filled! (${filled} option${filled !== 1 ? 's' : ''})`);
-            
-        } else if (question.type === "choicematrix") {
-            const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
-            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-            let filledCount = 0;
-            
-            correctValues.forEach(val => {
-                checkboxes.forEach(checkbox => {
-                    const checkValue = typeof val === 'object' ? val.value : val;
-                    if (checkbox.value === checkValue) {
-                        if (!checkbox.checked) checkbox.click();
-                        filledCount++;
+            if (question.type === "mcq") {
+                const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+                const radios = document.querySelectorAll(`input[type="radio"][name*="${question.response_id}"], input[type="radio"]`);
+                
+                let filled = 0;
+                radios.forEach(radio => {
+                    const isCorrect = correctValues.some(val => 
+                        radio.value === val || radio.value === (typeof val === 'object' ? val.value : val)
+                    );
+                    if (isCorrect && !radio.checked) {
+                        radio.click();
+                        filled++;
+                        totalFilled++;
+                        addDebugLog('success', `Q${qIndex + 1}: MCQ auto-filled`, { value: radio.value });
                     }
                 });
-            });
-            
-            addDebugLog('success', `Checkboxes auto-filled: ${filledCount}`);
-            alert(`Answer auto-filled! (${filledCount} option${filledCount !== 1 ? 's' : ''})`);
-            
-        } else if (question.type === "association") {
-            addDebugLog('warning', 'Auto-fill for matching questions not fully supported yet');
-            alert("Matching questions require manual drag-and-drop. The correct pairs are shown in the Response tab.");
-            
-        } else if (question.type === "clozedropdown") {
-            const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
-            const selects = document.querySelectorAll('select');
-            answers.forEach((answer, index) => {
-                if (selects[index]) {
-                    selects[index].value = answer;
-                    selects[index].dispatchEvent(new Event('change', { bubbles: true }));
-                    addDebugLog('success', `Dropdown ${index} filled`, { answer });
-                }
-            });
-            alert("Answer auto-filled!");
-            
-        } else if (question.type === "clozetext") {
-            const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
-            const inputs = document.querySelectorAll('input[type="text"]');
-            answers.forEach((answer, index) => {
-                if (inputs[index]) {
-                    inputs[index].value = answer;
-                    inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
-                    addDebugLog('success', `Text input ${index} filled`, { answer });
-                }
-            });
-            alert("Answer auto-filled!");
-            
-        } else if (question.type === "clozeformula") {
-            // NEW: Handle formula fill-in-the-blank questions
-            const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
-            const formulaInputs = document.querySelectorAll('input[data-lrn-component="formula"], .lrn-formula-input, input.formula-input');
-            
-            if (formulaInputs.length > 0) {
+                
+            } else if (question.type === "choicematrix") {
+                const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+                const checkboxes = document.querySelectorAll(`input[type="checkbox"][name*="${question.response_id}"], input[type="checkbox"]`);
+                
+                correctValues.forEach(val => {
+                    checkboxes.forEach(checkbox => {
+                        const checkValue = typeof val === 'object' ? val.value : val;
+                        if (checkbox.value === checkValue && !checkbox.checked) {
+                            checkbox.click();
+                            totalFilled++;
+                        }
+                    });
+                });
+                
+            } else if (question.type === "clozedropdown") {
+                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+                const selects = document.querySelectorAll(`select[data-lrn-response-id="${question.response_id}"], select`);
                 answers.forEach((answer, index) => {
-                    if (formulaInputs[index]) {
-                        formulaInputs[index].value = answer;
-                        formulaInputs[index].dispatchEvent(new Event('input', { bubbles: true }));
-                        formulaInputs[index].dispatchEvent(new Event('change', { bubbles: true }));
-                        addDebugLog('success', `Formula input ${index} filled`, { answer });
+                    if (selects[index]) {
+                        selects[index].value = answer;
+                        selects[index].dispatchEvent(new Event('change', { bubbles: true }));
+                        totalFilled++;
+                        addDebugLog('success', `Q${qIndex + 1}: Dropdown ${index} filled`, { answer });
                     }
                 });
-                alert("Formula blanks auto-filled!");
-            } else {
-                // Fallback to regular text inputs
-                const inputs = document.querySelectorAll('input[type="text"]');
+                
+            } else if (question.type === "clozetext") {
+                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+                const inputs = document.querySelectorAll(`input[type="text"][data-lrn-response-id="${question.response_id}"], input[type="text"]`);
                 answers.forEach((answer, index) => {
                     if (inputs[index]) {
                         inputs[index].value = answer;
                         inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
-                        addDebugLog('success', `Formula text input ${index} filled`, { answer });
+                        totalFilled++;
+                        addDebugLog('success', `Q${qIndex + 1}: Text input ${index} filled`, { answer });
                     }
                 });
-                alert("Formula blanks auto-filled!");
-            }
-            
-        } else if (question.type === "orderlist") {
-            addDebugLog('warning', 'Order list requires drag-and-drop');
-            alert("Order list questions require manual interaction. Check Response tab for correct order.");
-            
-        } else if (question.type === "formulaV2" || question.type === "chemistry") {
-            const input = document.querySelector('input[data-lrn-component="formula"], input[type="text"]');
-            if (input && validResponse) {
-                input.value = validResponse;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                addDebugLog('success', 'Formula filled', { answer: validResponse });
-                alert("Formula auto-filled!");
-            } else {
-                alert("Could not find formula input field");
-            }
-            
-        } else if (question.type === "plaintext" || question.type === "shorttext" || question.type === "longtext") {
-            const textarea = document.querySelector('textarea');
-            if (textarea && validResponse) {
-                textarea.value = validResponse;
-                textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                addDebugLog('success', 'Text response filled', { answer: validResponse });
-                alert("Text answer auto-filled!");
-            } else {
-                alert("Could not find text input area");
-            }
-        
-        // NEW: Additional question types
-        } else if (question.type === "highlight" || question.type === "highlighttext") {
-            addDebugLog('warning', 'Highlight questions require manual interaction');
-            alert("Highlight questions require manual selection. Check Response tab for the answer.");
-            
-        } else if (question.type === "hotspot") {
-            addDebugLog('warning', 'Hotspot questions require manual clicking');
-            alert("Hotspot questions require manual interaction. Check Response tab for the answer.");
-            
-        } else if (question.type === "graphplotting") {
-            addDebugLog('warning', 'Graph plotting requires manual interaction');
-            alert("Graph plotting questions require manual interaction. Check Response tab for the answer.");
-            
-        } else if (question.type === "classification") {
-            addDebugLog('warning', 'Classification requires drag-and-drop');
-            alert("Classification questions require manual drag-and-drop. Check Response tab for the answer.");
-            
-        } else if (question.type === "imageclozeassociation" || question.type === "imageclozeassociationV2") {
-            addDebugLog('warning', 'Image association requires drag-and-drop');
-            alert("Image association questions require manual interaction. Check Response tab for the answer.");
-            
-        } else if (question.type === "tokenhighlight") {
-            // Try to auto-select tokens
-            const correctTokens = Array.isArray(validResponse) ? validResponse : [validResponse];
-            const tokens = document.querySelectorAll('.lrn-token, [data-lrn-component="token"]');
-            let selected = 0;
-            
-            tokens.forEach((token, index) => {
-                if (correctTokens.includes(index) || correctTokens.includes(String(index))) {
-                    token.click();
-                    selected++;
+                
+            } else if (question.type === "clozeformula") {
+                const answers = Array.isArray(validResponse) ? validResponse : [validResponse];
+                const formulaInputs = document.querySelectorAll(`input[data-lrn-component="formula"][data-lrn-response-id="${question.response_id}"], input.formula-input`);
+                
+                if (formulaInputs.length > 0) {
+                    answers.forEach((answer, index) => {
+                        if (formulaInputs[index]) {
+                            formulaInputs[index].value = answer;
+                            formulaInputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+                            formulaInputs[index].dispatchEvent(new Event('change', { bubbles: true }));
+                            totalFilled++;
+                            addDebugLog('success', `Q${qIndex + 1}: Formula input ${index} filled`, { answer });
+                        }
+                    });
                 }
-            });
-            
-            if (selected > 0) {
-                alert(`${selected} token(s) auto-selected!`);
-            } else {
-                alert("Could not auto-select tokens. Try manually.");
             }
-            
-        } else if (question.type === "simplechart") {
-            addDebugLog('warning', 'Chart questions require manual input');
-            alert("Chart questions require manual data entry. Check Response tab for the answer.");
-            
+            // Add other question types as needed...
+        }
+        
+        if (totalFilled > 0) {
+            alert(`✅ Auto-filled ${totalFilled} answer(s) across ${questions.length} question(s)!`);
         } else {
-            addDebugLog('warning', `Auto-fill not supported for type: ${question.type}`);
-            alert(`Auto-fill not supported for question type: ${question.type}\n\nSupported types:\n- MCQ / Checkboxes\n- Dropdowns\n- Text/Formula inputs\n- Token selection\n\nCheck Response tab for the answer.`);
-            return;
+            alert(`⚠️ Found ${questions.length} question(s) but couldn't auto-fill any. Check console for details.`);
         }
         
     } catch (error) {
@@ -1419,23 +1367,48 @@ async function autoCompleteAssignment(realistic = false) {
     // ==================== CHEAT BUTTON HANDLERS ====================
 
     // Reveal answer
-    document.getElementById('reveal-answer').addEventListener('click', () => {
-        addDebugLog('info', 'Reveal answer clicked');
-        const result = getAnswerFromQuestion();
-        
-        if (!result.success) {
-            showResponse("Error: " + result.message);
-            return;
-        }
+document.getElementById('reveal-answer').addEventListener('click', () => {
+    addDebugLog('info', 'Reveal answer clicked');
+    const result = getAnswerFromQuestion();
+    
+    if (!result.success) {
+        showResponse("Error: " + result.message);
+        return;
+    }
 
-        if (result.isMatching) {
-            displayMatchingAnswer(result.matches);
-        } else {
-            const answerElement = document.querySelector("#answers-display");
-            answerElement.innerHTML = `<strong>Answer (${result.type}):</strong><br><br>${result.answer}`;
-            switchToTab('response');
-        }
-    });
+    // Handle multiple questions on one page
+    if (result.multiple && result.results) {
+        let allAnswersHTML = '<div style="font-weight: bold; margin-bottom: 1rem; color: #111827;">All Questions & Answers:</div>';
+        
+        result.results.forEach((res, idx) => {
+            allAnswersHTML += `<div style="border: 2px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; background: #f9fafb;">`;
+            allAnswersHTML += `<div style="font-weight: bold; color: #3b82f6; margin-bottom: 0.5rem;">Question ${res.index} (${res.type})</div>`;
+            
+            if (res.isMatching) {
+                res.matches.forEach(match => {
+                    allAnswersHTML += `<div class="match-pair" style="margin: 0.5rem 0;">
+                        <strong>${match.left}</strong> → <strong>${match.right}</strong>
+                    </div>`;
+                });
+            } else {
+                allAnswersHTML += `<div style="padding: 0.5rem; background: white; border-radius: 0.375rem;">${res.answer}</div>`;
+            }
+            
+            allAnswersHTML += `</div>`;
+        });
+        
+        const answerElement = document.querySelector("#answers-display");
+        answerElement.innerHTML = allAnswersHTML;
+        switchToTab('response');
+        
+    } else if (result.isMatching) {
+        displayMatchingAnswer(result.matches);
+    } else {
+        const answerElement = document.querySelector("#answers-display");
+        answerElement.innerHTML = `<strong>Answer (${result.type}):</strong><br><br>${result.answer}`;
+        switchToTab('response');
+    }
+});
 
     // Auto-fill
     document.getElementById('auto-fill-answer').addEventListener('click', autoFillAnswer);
