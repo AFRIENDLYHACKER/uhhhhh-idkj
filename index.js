@@ -322,131 +322,131 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
 
     // ==================== MENU STRUCTURE ====================
     
-    function createMenuStructure() {
-        const menu = document.createElement('div');
-        menu.className = 'modern-menu';
+   function createMenuStructure() {
+    const menu = document.createElement('div');
+    menu.className = 'modern-menu';
 
-        const menuButton = document.createElement('button');
-        menuButton.className = 'menu-button';
-        menuButton.textContent = 'Show Menu';
-        menu.appendChild(menuButton);
+    const menuButton = document.createElement('button');
+    menuButton.className = 'menu-button';
+    menuButton.textContent = 'Show Menu';
+    menu.appendChild(menuButton);
 
-        const menuContainer = document.createElement('div');
-        menuContainer.className = 'menu-container';
+    const menuContainer = document.createElement('div');
+    menuContainer.className = 'menu-container';
 
-        const tabsContainer = document.createElement('div');
-        tabsContainer.className = 'tabs';
+    const tabsContainer = document.createElement('div');
+    tabsContainer.className = 'tabs';
 
-        const tabsData = [
-            '<i class="fa-solid fa-shield-dog"></i> cheats',
-            '<i class="fa-regular fa-message"></i> response',
-            '<i class="fa-solid fa-brain"></i> AI',
-            '<i class="fa-solid fa-bug"></i> debug'
-        ];
-        
-        tabsData.forEach((tabName, index) => {
-            const tab = document.createElement('button');
-            tab.className = `tab${index === 0 ? ' active' : ''}`;
-            tab.setAttribute('data-tab', tabName);
-            tab.innerHTML = tabName.charAt(0).toUpperCase() + tabName.slice(1);
-            tabsContainer.appendChild(tab);
-        });
+    const tabsData = [
+        { name: 'cheats', icon: '<i class="fa-solid fa-shield-dog"></i>' },
+        { name: 'response', icon: '<i class="fa-regular fa-message"></i>' },
+        { name: 'AI', icon: '<i class="fa-solid fa-brain"></i>' },
+        { name: 'debug', icon: '<i class="fa-solid fa-bug"></i>' }
+    ];
+    
+    tabsData.forEach((tabData, index) => {
+        const tab = document.createElement('button');
+        tab.className = `tab${index === 0 ? ' active' : ''}`;
+        tab.setAttribute('data-tab', tabData.name);
+        tab.innerHTML = `${tabData.icon} ${tabData.name.charAt(0).toUpperCase() + tabData.name.slice(1)}`;
+        tabsContainer.appendChild(tab);
+    });
 
-        menuContainer.appendChild(tabsContainer);
+    menuContainer.appendChild(tabsContainer);
 
-        // Cheats tab - streamlined
-        const cheatsContent = createTabContent('<i class="fa-solid fa-shield-dog"></i> cheats', true);
-        const buttons = [
-            { id: 'reveal-answer', text: '🎯 Reveal Answer', color: '#059669' },
-            { id: 'auto-fill-answer', text: '⚡ Auto Fill Answer', color: '#dc2626' },
-            { id: 'highlight-correct', text: '✨ Highlight Correct', color: '#f59e0b' },
-            { id: 'show-hints', text: '🔍 Show Hints', color: '#14b8a6' },
-            { id: 'explanation', text: '💡 Show Explanation', color: '#06b6d4' },
-            { id: 'copy-question', text: '📄 Copy Question Text', color: '#6366f1' },
-            { id: 'copy-answer', text: '📝 Copy Answer Only', color: '#8b5cf6' },
-            { id: 'enable-auto-actions', text: '🔄 Enable Auto-Actions', color: '#059669' },
-            { id: 'disable-auto-actions', text: '⏸️ Disable Auto-Actions', color: '#dc2626' }
-        ];
-        
-        buttons.forEach(btn => {
-            const button = document.createElement('button');
-            button.className = 'action-button';
-            button.id = btn.id;
-            button.textContent = btn.text;
-            button.style.background = btn.color;
-            cheatsContent.appendChild(button);
-        });
+    // Cheats tab - streamlined
+    const cheatsContent = createTabContent('cheats', true);
+    const buttons = [
+        { id: 'reveal-answer', text: '🎯 Reveal Answer', color: '#059669' },
+        { id: 'auto-fill-answer', text: '⚡ Auto Fill Answer', color: '#dc2626' },
+        { id: 'highlight-correct', text: '✨ Highlight Correct', color: '#f59e0b' },
+        { id: 'show-hints', text: '🔍 Show Hints', color: '#14b8a6' },
+        { id: 'explanation', text: '💡 Show Explanation', color: '#06b6d4' },
+        { id: 'copy-question', text: '📄 Copy Question Text', color: '#6366f1' },
+        { id: 'copy-answer', text: '📝 Copy Answer Only', color: '#8b5cf6' },
+        { id: 'enable-auto-actions', text: '🔄 Enable Auto-Actions', color: '#059669' },
+        { id: 'disable-auto-actions', text: '⏸️ Disable Auto-Actions', color: '#dc2626' }
+    ];
+    
+    buttons.forEach(btn => {
+        const button = document.createElement('button');
+        button.className = 'action-button';
+        button.id = btn.id;
+        button.textContent = btn.text;
+        button.style.background = btn.color;
+        cheatsContent.appendChild(button);
+    });
 
-        // Response tab
-        const responseContent = createTabContent('<i class="fa-regular fa-message"></i> response');
-        const answersDisplay = document.createElement('div');
-        answersDisplay.id = 'answers-display';
-        answersDisplay.style.fontWeight = 'bold';
-        answersDisplay.style.whiteSpace = "pre-wrap";
-        answersDisplay.textContent = 'Answers will appear here...';
-        responseContent.appendChild(answersDisplay);
+    // Response tab
+    const responseContent = createTabContent('response');
+    const answersDisplay = document.createElement('div');
+    answersDisplay.id = 'answers-display';
+    answersDisplay.style.fontWeight = 'bold';
+    answersDisplay.style.whiteSpace = "pre-wrap";
+    answersDisplay.textContent = 'Answers will appear here...';
+    responseContent.appendChild(answersDisplay);
 
-        // AI tab
-        const aiContent = createTabContent('<i class="fa-solid fa-brain"></i> AI');
-        const chatContainer = document.createElement('div');
-        chatContainer.className = 'chat-container';
+    // AI tab
+    const aiContent = createTabContent('AI');
+    const chatContainer = document.createElement('div');
+    chatContainer.className = 'chat-container';
 
-        const inputContainer = document.createElement('div');
-        inputContainer.className = 'input-container';
+    const inputContainer = document.createElement('div');
+    inputContainer.className = 'input-container';
 
-        const chatInput = document.createElement('input');
-        chatInput.type = 'text';
-        chatInput.className = 'chat-input';
-        chatInput.placeholder = 'Type your message...';
+    const chatInput = document.createElement('input');
+    chatInput.type = 'text';
+    chatInput.className = 'chat-input';
+    chatInput.placeholder = 'Type your message...';
 
-        const sendButton = document.createElement('button');
-        sendButton.className = 'action-button';
-        sendButton.style.width = 'auto';
-        sendButton.style.margin = '0';
-        sendButton.textContent = 'Send';
+    const sendButton = document.createElement('button');
+    sendButton.className = 'action-button';
+    sendButton.style.width = 'auto';
+    sendButton.style.margin = '0';
+    sendButton.textContent = 'Send';
 
-        const botAnswer = document.createElement('button');
-        botAnswer.className = 'action-button';
-        botAnswer.id = 'botAnswer';
-        botAnswer.style.width = '91%';
-        botAnswer.style.margin = '3% auto';
-        botAnswer.textContent = "AI Solve (Beta)";
+    const botAnswer = document.createElement('button');
+    botAnswer.className = 'action-button';
+    botAnswer.id = 'botAnswer';
+    botAnswer.style.width = '91%';
+    botAnswer.style.margin = '3% auto';
+    botAnswer.textContent = "AI Solve (Beta)";
 
-        inputContainer.appendChild(chatInput);
-        inputContainer.appendChild(sendButton);
+    inputContainer.appendChild(chatInput);
+    inputContainer.appendChild(sendButton);
 
-        aiContent.appendChild(chatContainer);
-        aiContent.appendChild(inputContainer);
-        aiContent.appendChild(botAnswer);
+    aiContent.appendChild(chatContainer);
+    aiContent.appendChild(inputContainer);
+    aiContent.appendChild(botAnswer);
 
-        // Debug tab
-        const debugContent = createTabContent('<i class="fa-solid fa-bug"></i> debug');
-        debugContent.setAttribute('data-content', 'debug');
-        
-        const clearLogsButton = document.createElement('button');
-        clearLogsButton.className = 'action-button';
-        clearLogsButton.id = 'clear-logs';
-        clearLogsButton.textContent = 'Clear Logs';
-        debugContent.appendChild(clearLogsButton);
+    // Debug tab
+    const debugContent = createTabContent('debug');
+    debugContent.setAttribute('data-content', 'debug');
+    
+    const clearLogsButton = document.createElement('button');
+    clearLogsButton.className = 'action-button';
+    clearLogsButton.id = 'clear-logs';
+    clearLogsButton.textContent = 'Clear Logs';
+    debugContent.appendChild(clearLogsButton);
 
-        menuContainer.appendChild(cheatsContent);
-        menuContainer.appendChild(responseContent);
-        menuContainer.appendChild(aiContent);
-        menuContainer.appendChild(debugContent);
+    menuContainer.appendChild(cheatsContent);
+    menuContainer.appendChild(responseContent);
+    menuContainer.appendChild(aiContent);
+    menuContainer.appendChild(debugContent);
 
-        menu.appendChild(menuContainer);
-        document.body.appendChild(menu);
+    menu.appendChild(menuContainer);
+    document.body.appendChild(menu);
 
-        return {
-            menuButton,
-            menuContainer,
-            tabs: tabsContainer.querySelectorAll('.tab'),
-            tabContents: menuContainer.querySelectorAll('.tab-content'),
-            chatInput,
-            sendButton,
-            chatContainer
-        };
-    }
+    return {
+        menuButton,
+        menuContainer,
+        tabs: tabsContainer.querySelectorAll('.tab'),
+        tabContents: menuContainer.querySelectorAll('.tab-content'),
+        chatInput,
+        sendButton,
+        chatContainer
+    };
+}
 
     function createTabContent(name, isActive = false) {
         const content = document.createElement('div');
