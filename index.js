@@ -284,6 +284,8 @@ if (window.location.href.includes('prodpcx-cdn-vegaviewer.emssvc.connexus.com') 
     { id: 'auto-complete', text: '🚀 Auto Complete (Perfect)', color: '#7c3aed' },
     { id: 'auto-complete-realistic', text: '🎭 Auto Complete (Realistic)', color: '#ec4899' },
     { id: 'highlight-correct', text: '✨ Highlight Correct', color: '#f59e0b' },
+            { id: 'enable-auto-actions', text: '🔄 Enable Auto-Actions', color: '#059669' },
+{ id: 'disable-auto-actions', text: '⏸️ Disable Auto-Actions', color: '#dc2626' },
     { id: 'show-all-answers', text: '📋 Show All Options', color: '#3b82f6' },
     { id: 'copy-question', text: '📄 Copy Question Text', color: '#6366f1' },
     { id: 'copy-answer', text: '📝 Copy Answer Only', color: '#8b5cf6' },
@@ -572,6 +574,66 @@ function setupAPIInterceptor() {
     
     addDebugLog('success', 'API Interceptor installed');
 }
+    // ==================== AUTO-ACTIONS ON NAVIGATION ====================
+
+let isFirstQuestion = true;
+let autoActionsEnabled = false;
+
+function enableAutoActions() {
+    autoActionsEnabled = true;
+    addDebugLog('success', 'Auto-actions enabled');
+}
+
+function disableAutoActions() {
+    autoActionsEnabled = false;
+    addDebugLog('info', 'Auto-actions disabled');
+}
+
+async function performAutoActions() {
+    if (!autoActionsEnabled) return;
+    
+    addDebugLog('info', 'Performing auto-actions...');
+    
+    // Wait 1 second
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Auto-fill
+    autoFillAnswer();
+    
+    // Wait another 1 second
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Highlight
+    document.getElementById('highlight-correct').click();
+    
+    addDebugLog('success', 'Auto-actions completed');
+}
+
+function setupAutoNavigation() {
+    const nextButton = document.querySelector("#lrn_assess_next_btn");
+    
+    if (nextButton && !nextButton.dataset.autoActionAttached) {
+        const originalClick = nextButton.onclick;
+        
+        nextButton.addEventListener('click', async function(e) {
+            addDebugLog('info', 'Next button clicked');
+            
+            // Let the navigation happen first
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Then perform auto-actions on the new question
+            if (autoActionsEnabled) {
+                await performAutoActions();
+            }
+        });
+        
+        nextButton.dataset.autoActionAttached = "true";
+        addDebugLog('success', 'Auto-navigation setup complete');
+    }
+}
+
+// Check for next button periodically
+setInterval(setupAutoNavigation, 1000);
     // ==================== ENHANCED MATCHING EXTRACTION ====================
     
     function getMatchingLabelsFromDOM() {
@@ -1578,85 +1640,60 @@ document.getElementById('clear-progress').addEventListener('click', () => {
     }
 });
     
-    // Highlight correct - FIXED
-    document.getElementById('highlight-correct').addEventListener('click', () => {
-        addDebugLog('info', 'Highlight correct clicked');
-        try {
-            const currentItem = window.LearnosityAssess.getCurrentItem();
-            const question = currentItem.questions[0];
-            
-            if (question.type !== "mcq" && question.type !== "choicematrix") {
-                alert("Highlighting only works for multiple choice questions");
-                return;
-            }
-            
-            const validResponse = question.validation.valid_response.value;
-            const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
-            
-            const allInputs = document.querySelectorAll('input[type="radio"], input[type="checkbox"]');
-            let highlightedCount = 0;
-            
-            allInputs.forEach(input => {
-                const isCorrect = correctValues.some(val => {
-                    return input.value === val || input.value === (typeof val === 'object' ? val.value : val);
-                });
-                
-                if (isCorrect) {
-                    let container = input.closest('.lrn_option, .lrn-option, .lrn_response_container, label, div[class*="option"]');
-                    if (!container) container = input.parentElement;
-                    
-                    if (container) {
-                        container.style.cssText += `
-                            background: #dcfce7 !important;
-                            border: 3px solid #10b981 !important;
-                            border-radius: 0.5rem !important;
-                            padding: 0.75rem !important;
-                            margin: 0.25rem 0 !important;
-                            box-shadow: 0 0 10px rgba(16, 185, 129, 0.3) !important;
-                        `;
-                        highlightedCount++;
-                    }
-                }
+    // Highlight correct - FIXED (current question only)
+document.getElementById('highlight-correct').addEventListener('click', () => {
+    addDebugLog('info', 'Highlight correct clicked');
+    try {
+        const currentItem = window.LearnosityAssess.getCurrentItem();
+        const question = currentItem.questions[0]; // Only current question
+        
+        if (question.type !== "mcq" && question.type !== "choicematrix") {
+            alert("Highlighting only works for multiple choice questions");
+            return;
+        }
+        
+        const validResponse = question.validation.valid_response.value;
+        const correctValues = Array.isArray(validResponse) ? validResponse : [validResponse];
+        
+        const allInputs = document.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+        let highlightedCount = 0;
+        
+        allInputs.forEach(input => {
+            const isCorrect = correctValues.some(val => {
+                return input.value === val || input.value === (typeof val === 'object' ? val.value : val);
             });
             
-            if (highlightedCount > 0) {
-                addDebugLog('success', `Highlighted ${highlightedCount} correct answer(s)`);
-                alert(`Correct answer(s) highlighted in green! (${highlightedCount} found)`);
-            } else {
-                addDebugLog('warning', 'No answers highlighted - trying alternative method');
+            if (isCorrect) {
+                let container = input.closest('.lrn_option, .lrn-option, .lrn_response_container, label, div[class*="option"]');
+                if (!container) container = input.parentElement;
                 
-                const correctOption = question.options.find(opt => correctValues.includes(opt.value));
-                if (correctOption) {
-                    const optionText = stripHTML(correctOption.label);
-                    const allLabels = document.querySelectorAll('label, .lrn_option, .lrn-option, [class*="option"]');
-                    
-                    allLabels.forEach(label => {
-                        if (label.textContent.includes(optionText)) {
-                            label.style.cssText += `
-                                background: #dcfce7 !important;
-                                border: 3px solid #10b981 !important;
-                                border-radius: 0.5rem !important;
-                                padding: 0.75rem !important;
-                                box-shadow: 0 0 10px rgba(16, 185, 129, 0.3) !important;
-                            `;
-                            highlightedCount++;
-                        }
-                    });
-                }
-                
-                if (highlightedCount > 0) {
-                    alert(`Highlighted by text matching! (${highlightedCount} found)`);
-                } else {
-                    alert("Could not find elements to highlight. Check the Response tab for the answer.");
+                if (container) {
+                    container.style.cssText += `
+                        background: #dcfce7 !important;
+                        border: 3px solid #10b981 !important;
+                        border-radius: 0.5rem !important;
+                        padding: 0.75rem !important;
+                        margin: 0.25rem 0 !important;
+                        box-shadow: 0 0 10px rgba(16, 185, 129, 0.3) !important;
+                    `;
+                    highlightedCount++;
                 }
             }
-            
-        } catch (error) {
-            addDebugLog('error', 'Highlight error', error);
-            alert("Error: " + error.message);
+        });
+        
+        if (highlightedCount > 0) {
+            addDebugLog('success', `Highlighted ${highlightedCount} correct answer(s)`);
+        } else {
+            addDebugLog('warning', 'No answers highlighted');
+            alert("Could not highlight - check Response tab for answer");
         }
-    });
-
+        
+    } catch (error) {
+        addDebugLog('error', 'Highlight error', error);
+        alert("Error: " + error.message);
+    }
+});
+    
     // Show all answers
     document.getElementById('show-all-answers').addEventListener('click', () => {
         addDebugLog('info', 'Show all answers clicked');
@@ -2099,6 +2136,24 @@ Average Score: ${metadata.average_score || 'N/A'}`;
         addDebugLog('info', 'Logs cleared');
     });
 
+    // Enable auto-actions
+document.getElementById('enable-auto-actions').addEventListener('click', () => {
+    enableAutoActions();
+    alert('✅ Auto-actions enabled!\n\n• First question: Auto-fill + highlight now\n• Next questions: Auto-fill + highlight after clicking Next\n• 1 second delay between actions');
+    
+    // If this is the first question, do it immediately
+    if (isFirstQuestion) {
+        isFirstQuestion = false;
+        performAutoActions();
+    }
+});
+
+// Disable auto-actions
+document.getElementById('disable-auto-actions').addEventListener('click', () => {
+    disableAutoActions();
+    alert('⏸️ Auto-actions disabled');
+});
+    
 // Keyboard shortcuts
     document.addEventListener("keydown", function (e) {
         if (e.key === "ArrowLeft" && !e.target.matches('input, textarea')) {
