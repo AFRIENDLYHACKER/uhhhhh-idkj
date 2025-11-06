@@ -1119,11 +1119,11 @@ function autoFillAnswer() {
     // ==================== UI HELPERS ====================
     
     function switchToTab(tabName) {
-        const tab = Array.from(elements.tabs).find(t => 
-            t.dataset.tab.includes(tabName)
-        );
-        if (tab) tab.click();
-    }
+    const tab = Array.from(elements.tabs).find(t => 
+        t.dataset.tab === tabName || t.dataset.tab.toLowerCase() === tabName.toLowerCase()
+    );
+    if (tab) tab.click();
+}
 
     function showResponse(content, isHTML = false) {
         const display = document.querySelector("#answers-display");
